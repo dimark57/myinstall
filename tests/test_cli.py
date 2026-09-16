@@ -1,5 +1,7 @@
 import pytest
+import json
 from unittest.mock import patch
+from pathlib import Path
 
 from myinstall import cli
 
@@ -109,3 +111,22 @@ def test_man_is_not_an_internal_command() -> None:
     with patch("myinstall.cli.do_app_sync", return_value=0) as sync:
         assert cli.main(["man"]) == 0
     sync.assert_called_once_with("man", None, None)
+
+
+def test_myqa_catalog_entry_declares_native_application_contract() -> None:
+    catalog = json.loads(
+        (Path(__file__).parents[1] / "catalog" / "apps.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    entry = catalog["apps"]["myqa"]
+    assert entry["runtime"] == "native"
+    assert entry["release_asset_pattern"] == "myqa-{version}-{platform}"
+    assert entry["cli"]["name"] == "myqa"
+    assert set(entry["cli"]["commands"]) == {
+        "--version",
+        "--help",
+        "--man",
+        "--doctor",
+        "--update",
+    }

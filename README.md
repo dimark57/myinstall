@@ -80,6 +80,7 @@ sudo myinstall doctor --manifest deploy/bootstrap/manifest.json
 sudo myinstall secret rotate --manifest deploy/bootstrap/manifest.json --name database --confirm
 sudo myinstall remove --manifest deploy/bootstrap/manifest.json --confirm
 sudo myinstall mytask
+sudo myinstall myqa
 myinstall --help
 sudo myinstall --plan
 sudo myinstall --doctor

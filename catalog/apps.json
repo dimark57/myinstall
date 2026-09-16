@@ -51,6 +51,43 @@
         "host": "postgres",
         "port": "5432"
       }
+    },
+    "myqa": {
+      "schema_version": "1.0",
+      "kind": "application",
+      "app": "myqa",
+      "zone": "apps",
+      "runtime": "native",
+      "release_source": "dimark57/myqa",
+      "release_channel": "stable",
+      "current_version": "v0.1.0",
+      "release_asset_pattern": "myqa-{version}-{platform}",
+      "artifact": {
+        "url": "https://github.com/dimark57/myqa/releases/download/v0.1.0/myqa-v0.1.0-linux-amd64",
+        "sha256": "17e1d721ab48b1d619196565f71263769a432d852d03b5ae662a76984cb3ccbf"
+      },
+      "install_path": "/srv/nas/stacks/apps/myqa/releases/current/myqa",
+      "stack_path": "/srv/nas/stacks/apps/myqa",
+      "data_path": "/srv/nas/data/myqa",
+      "secret_path": "/srv/nas/secrets/myqa.env",
+      "secret_mount": "/run/myqa.env",
+      "required_secrets": [],
+      "generated_secrets": [],
+      "healthcheck": {
+        "url": "http://127.0.0.1:0/health",
+        "timeout_seconds": 5,
+        "retries": 1
+      },
+      "cli": {
+        "name": "myqa",
+        "commands": [
+          "--version",
+          "--help",
+          "--man",
+          "--doctor",
+          "--update"
+        ]
+      }
     }
   }
 }
