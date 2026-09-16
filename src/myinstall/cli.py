@@ -10,7 +10,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from . import discovery, github, manifest, native, postgres, runtime, secrets, service
+from . import __version__, discovery, github, manifest, native, postgres, runtime, secrets, service
 
 
 def output(value: dict[str, Any], code: int = 0) -> int:
@@ -498,6 +498,7 @@ def do_app_install(manifest_url: str, confirm: bool) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="myinstall")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
     for name in ("plan", "doctor", "check", "install", "upgrade", "rollback", "remove"):
         command = sub.add_parser(name)
