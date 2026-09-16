@@ -64,7 +64,7 @@
       "release_asset_pattern": "myqa-{version}-{platform}",
       "artifact": {
         "url": "https://github.com/dimark57/myqa/releases/download/v0.1.0/myqa-v0.1.0-linux-amd64",
-        "sha256": "17e1d721ab48b1d619196565f71263769a432d852d03b5ae662a76984cb3ccbf"
+        "sha256": "a83fe2ad8b455f9a493cdf689e9a329c11253731fe7e80acdbfd5e9959560654"
       },
       "install_path": "/srv/nas/stacks/apps/myqa/releases/current/myqa",
       "stack_path": "/srv/nas/stacks/apps/myqa",
@@ -85,7 +85,11 @@
           "--help",
           "--man",
           "--doctor",
-          "--update"
+          "--update",
+          "help",
+          "man",
+          "doctor",
+          "update"
         ]
       }
     }
