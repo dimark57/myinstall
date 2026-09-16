@@ -148,7 +148,7 @@ def provision(
         f"DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = {literal(role)}) "
         f"THEN CREATE ROLE {identifier(role)} LOGIN PASSWORD {literal(password)}; "
         f"ELSE ALTER ROLE {identifier(role)} PASSWORD {literal(password)}; END IF; END $$;\n"
-        f"SELECT 'CREATE DATABASE {database}' WHERE NOT EXISTS "
+        f"SELECT 'CREATE DATABASE ' || quote_ident({literal(database)}) WHERE NOT EXISTS "
         f"(SELECT FROM pg_database WHERE datname = {literal(database)})\\gexec\n"
         f"GRANT ALL PRIVILEGES ON DATABASE {identifier(database)} TO {identifier(role)};"
     )

@@ -44,7 +44,9 @@
         "database": {"type": "string"},
         "role_password_key": {"type": "string"},
         "database_url_key": {"type": "string"},
-        "admin_password_key": {"type": "string"}
+        "admin_password_key": {"type": "string"},
+        "host": {"type": "string"},
+        "port": {"type": ["string", "integer"]}
       }
     }
   },

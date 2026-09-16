@@ -2,6 +2,14 @@
 
 All notable changes to `myinstall` are documented here.
 
+## [0.2.2] - 2026-09-16
+
+### Fixed
+
+- Include PostgreSQL host/port fields in the manifest schema.
+- Quote database identifiers safely during shared PostgreSQL provisioning.
+- Add data directories and healthcheck contract to the Compose template.
+
 ## [0.2.1] - 2026-09-16
 
 ### Fixed

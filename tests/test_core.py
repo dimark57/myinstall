@@ -86,6 +86,14 @@ class CoreTest(unittest.TestCase):
         self.assertIn("/run/demo.env", rendered)
         self.assertNotIn("{{", rendered)
 
+    def test_docker_runtime_requires_immutable_release_reference(self) -> None:
+        data = manifest.load(self.manifest_path)
+        data.update({"runtime": "docker", "image": "ghcr.io/example/demo:v1.2.3"})
+        data["secret_path"] = "/srv/nas/secrets/demo.env"
+        self.assertEqual(manifest.validate_paths(data), [])
+        data["image"] = "ghcr.io/example/demo:latest"
+        self.assertIn("immutable image", " ".join(manifest.validate_paths(data)))
+
     def test_shared_postgres_uses_admin_compose_and_existing_password(self) -> None:
         data = manifest.load(self.manifest_path)
         data["postgres"] = {

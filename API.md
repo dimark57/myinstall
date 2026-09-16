@@ -44,6 +44,6 @@ must never destroy the cluster or reuse another application's data directory.
 
 `runtime=native` installs an executable artifact without managing a service.
 `runtime=systemd` manages a Linux systemd unit. `runtime=launchd` manages a
-macOS launch agent. `runtime=docker` manages Compose and requires an immutable
-image. `runtime=mixed` may use both an image and a native sidecar. `runtime=none`
-only provisions host state and secrets.
+macOS launch agent. `runtime=docker` manages app-only Compose and requires an
+immutable `vX.Y.Z` tag or digest. `runtime=mixed` may use both an image and a
+native sidecar. `runtime=none` only provisions host state and secrets.
