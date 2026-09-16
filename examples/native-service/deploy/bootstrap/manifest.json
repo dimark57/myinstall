@@ -24,6 +24,7 @@
   "migration_command": [],
   "postgres": {
     "mode": "shared",
+    "admin_compose_path": "/srv/nas/stacks/infra/postgres/docker-compose.yml",
     "service": "postgres",
     "role": "example",
     "database": "example",

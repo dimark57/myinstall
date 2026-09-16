@@ -2,6 +2,12 @@
 
 All notable changes to `myinstall` are documented here.
 
+## [0.2.3] - 2026-09-16
+
+### Fixed
+
+- Complete the shared PostgreSQL path in the native integration example.
+
 ## [0.2.2] - 2026-09-16
 
 ### Fixed
