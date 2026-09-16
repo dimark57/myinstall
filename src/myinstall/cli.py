@@ -471,14 +471,21 @@ def do_upgrade(path: Path, data: dict[str, Any], image: str | None, version: str
     stack = Path(data["stack_path"])
     with runtime.lock(stack):
         bar.step("update application runtime")
-        try:
-            compose = runtime.materialize(path, data)
-        except (OSError, ValueError) as exc:
-            return output(errors.upgrade_failure("UPG-005", diagnostic=str(exc)), 1)
-        before = compose.read_text(encoding="utf-8")
+        compose = stack / "docker-compose.yml"
         backup = stack / ".myinstall.previous-compose"
-        backup.write_text(before, encoding="utf-8")
-        compose.write_text(before.replace(str(data["image"]), image), encoding="utf-8")
+        before: str | None = None
+        try:
+            # Сначала сохраняем runtime до materialize(): materialize() перезаписывает
+            # docker-compose.yml из текущего manifest и не является snapshot предыдущего релиза.
+            before = compose.read_text(encoding="utf-8")
+            backup.write_text(before, encoding="utf-8")
+            compose = runtime.materialize(path, data)
+            materialized = compose.read_text(encoding="utf-8")
+        except (OSError, ValueError) as exc:
+            if before is not None:
+                compose.write_text(before, encoding="utf-8")
+            return output(errors.upgrade_failure("UPG-005", diagnostic=str(exc)), 1)
+        compose.write_text(materialized.replace(str(data["image"]), image), encoding="utf-8")
         compose_errors = runtime.validate_compose(compose, {**data, "image": image})
         if compose_errors:
             compose.write_text(before, encoding="utf-8")

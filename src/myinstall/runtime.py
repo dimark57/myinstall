@@ -41,7 +41,11 @@ def run_result(
         )
     except (OSError, subprocess.SubprocessError):
         return False, "command could not be started"
-    diagnostic = (result.stderr or result.stdout or "").strip()
+    diagnostic = "\n".join(
+        part.strip()
+        for part in (result.stderr or "", result.stdout or "")
+        if part and part.strip()
+    )
     # Docker/psql can echo connection strings or environment fragments.
     diagnostic = re.sub(r"(?i)(postgres(?:ql)?://)[^\s\"']+", r"\1[redacted]", diagnostic)
     diagnostic = re.sub(r"(?i)(password|token|secret)([=:])[^\s\"']+", r"\1\2[redacted]", diagnostic)

@@ -103,6 +103,19 @@ class CoreTest(unittest.TestCase):
         self.assertEqual(run_mock.call_args.kwargs["input"], "ghcr-token\n")
         self.assertEqual(run_mock.call_args.args[0][4], "ghcr-user")
 
+    def test_run_result_preserves_stderr_and_stdout_diagnostics(self) -> None:
+        completed = type(
+            "Completed",
+            (),
+            {"returncode": 1, "stderr": "migration warning", "stdout": "alembic detail"},
+        )()
+        with patch("myinstall.runtime.subprocess.run", return_value=completed):
+            ok, diagnostic = runtime.run_result(["migration"])
+
+        self.assertFalse(ok)
+        self.assertIn("migration warning", diagnostic)
+        self.assertIn("alembic detail", diagnostic)
+
     def test_docker_runtime_requires_immutable_release_reference(self) -> None:
         data = manifest.load(self.manifest_path)
         data.update({"runtime": "docker", "image": "ghcr.io/example/demo:v1.2.3"})

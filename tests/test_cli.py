@@ -243,3 +243,32 @@ def test_docker_upgrade_reports_failed_rollback(tmp_path, capsys) -> None:
     assert result["error_code"] == "UPG-013"
     assert result["stage"] == "Rollback"
     assert result["rollback"] == "previous compose restart failed"
+
+
+def test_docker_upgrade_snapshots_compose_before_materialize(tmp_path, capsys) -> None:
+    compose, data = _docker_upgrade_data(tmp_path)
+    previous = compose.read_text(encoding="utf-8")
+
+    def materialize_new_compose(*args, **kwargs):
+        compose.write_text(
+            previous.replace("v1.0.0", "v1.0.1"),
+            encoding="utf-8",
+        )
+        return compose
+
+    with patch(
+        "myinstall.cli.runtime.materialize",
+        side_effect=materialize_new_compose,
+    ), patch("myinstall.cli.runtime.validate_compose", return_value=[]), \
+        patch("myinstall.cli.runtime.ensure_registry_login", return_value=True), \
+        patch("myinstall.cli.runtime.compose", side_effect=[True, False, True]):
+        assert cli.do_upgrade(
+            tmp_path / "manifest.json",
+            data,
+            "ghcr.io/example/mytask:v1.0.1",
+            None,
+        ) == 1
+
+    result = json.loads(capsys.readouterr().out)
+    assert result["rollback_code"] == "UPG-012"
+    assert "v1.0.0" in (tmp_path / "stack" / ".myinstall.previous-compose").read_text()

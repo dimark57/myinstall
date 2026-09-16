@@ -30,10 +30,11 @@ jobs:
         run: |
           set -euo pipefail
           SHA="${{ github.sha }}"
+          REPO="${GITHUB_REPOSITORY}"
           deadline=$((SECONDS + 90))
           run_json=""
           while true; do
-            run_json=$(gh run list --workflow tests.yml --json databaseId,headSha,event,status,conclusion,createdAt --limit 80 \
+            run_json=$(gh run list --repo "$REPO" --workflow tests.yml --json databaseId,headSha,event,status,conclusion,createdAt --limit 80 \
               | jq -c --arg sha "$SHA" '[.[] | select(.headSha == $sha and (.event == "push" or .event == "pull_request"))] | sort_by(.createdAt) | reverse | .[0] // empty')
             if [[ -n "${run_json}" && "${run_json}" != "null" ]]; then
               break
