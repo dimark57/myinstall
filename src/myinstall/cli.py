@@ -889,10 +889,10 @@ def do_helper_install(app_id: str, test: bool) -> int:
     if not isinstance(config, dict):
         return output({"ok": False, "error": "application has no Mac helper contract"}, 1)
     source = str(data.get("release_source", ""))
-    release = github.latest(source)
-    if release is None:
-        return output({"ok": False, "error": "no stable helper release found"}, 1)
-    selected = github.asset(release, str(config.get("asset_pattern", "")))
+    selected_release = github.latest_with_asset(source, str(config.get("asset_pattern", "")))
+    if selected_release is None:
+        return output({"ok": False, "error": "no stable helper asset found"}, 1)
+    release, selected = selected_release
     checksum = github.asset_sha256(release, selected)
     temporary = native.download({"artifact": {"url": selected["url"], "sha256": checksum}})
     _, uid, home = service._launch_user()
@@ -1054,9 +1054,11 @@ def main(argv: list[str] | None = None) -> int:
                 docker="--docker" in raw_argv[1:],
                 test="--test" in raw_argv[1:],
             )
+        if "--uninstall" in raw_argv[1:]:
+            return do_helper_command(app_id, "uninstall")
         if len(raw_argv) >= 2 and raw_argv[1] == "helper":
-            if len(raw_argv) < 3 or raw_argv[2] not in {"start", "stop", "status"}:
-                return output({"ok": False, "error": "helper action must be start, stop, or status"}, 1)
+            if len(raw_argv) < 3 or raw_argv[2] not in {"start", "stop", "status", "uninstall"}:
+                return output({"ok": False, "error": "helper action must be start, stop, status, or uninstall"}, 1)
             return do_helper_command(app_id, raw_argv[2])
     if len(raw_argv) >= 2 and raw_argv[0] not in {
         "plan", "doctor", "check", "install", "upgrade", "rollback",

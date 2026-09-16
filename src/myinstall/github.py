@@ -115,6 +115,29 @@ def latest(source: str, *, channel: str = "stable", etag: str | None = None) -> 
     )
 
 
+def latest_with_asset(source: str, pattern: str, *, channel: str = "stable") -> tuple[Release, dict[str, Any]] | None:
+    endpoint = f"https://api.github.com/repos/{repository(source)}/releases?per_page=20"
+    status, body, _ = _request(endpoint)
+    if status == 304:
+        return None
+    payload = json.loads(body)
+    for item in payload:
+        if channel == "stable" and item.get("prerelease"):
+            continue
+        if channel == "prerelease" and not item.get("prerelease"):
+            continue
+        release = Release(
+            tag=str(item["tag_name"]),
+            prerelease=bool(item.get("prerelease", False)),
+            assets=tuple(item.get("assets", [])),
+        )
+        try:
+            return release, asset(release, pattern)
+        except ValueError:
+            continue
+    return None
+
+
 def by_tag(source: str, tag: str) -> Release:
     status, body, response_etag = _request(
         f"https://api.github.com/repos/{repository(source)}/releases/tags/{tag}"

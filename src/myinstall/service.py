@@ -3,6 +3,7 @@ from __future__ import annotations
 import plistlib
 import os
 import pwd
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -148,6 +149,16 @@ def helper_action(manifest: dict[str, Any], command: str) -> tuple[bool, str]:
         return runtime.run_result(["launchctl", "bootstrap", f"gui/{uid}", str(plist)], timeout=30)
     if command == "stop":
         return runtime.run_result(["launchctl", "bootout", target], timeout=30)
+    if command == "uninstall":
+        stopped, diagnostic = runtime.run_result(["launchctl", "bootout", target], timeout=30)
+        if not stopped and plist.exists():
+            return False, diagnostic
+        plist.unlink(missing_ok=True)
+        shutil.rmtree(
+            home / "Library" / "Application Support" / "myinstall" / str(manifest["app"]),
+            ignore_errors=True,
+        )
+        return True, diagnostic
     return False, f"unknown helper action: {command}"
 
 
