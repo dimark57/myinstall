@@ -6,7 +6,7 @@ Docker/Compose как один из runtime adapters устанавливаем�
 не требует Docker для запуска собственной CLI или для native/systemd
 проектов.
 
-Latest release: `v0.3.17`
+Latest release: `v0.3.18`
 
 - Install contract: [docs/INTEGRATION.md](docs/INTEGRATION.md)
 - GitHub application release contract: [docs/GITHUB_APPLICATION_RELEASE_CONTRACT.md](docs/GITHUB_APPLICATION_RELEASE_CONTRACT.md)
