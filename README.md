@@ -85,6 +85,7 @@ myinstall --plan
 myinstall --doctor
 myinstall --update
 myinstall mytask --update
+sudo myinstall auth setup
 myinstall apps check --root /srv/nas/stacks
 myinstall apps upgrade --root /srv/nas/stacks --confirm
 ```
@@ -101,6 +102,10 @@ not grant or manage sudo permissions itself.
 is always the positional token: `myinstall mytask`. Application updates use
 `myinstall mytask --update`. A positional token is never treated as an
 internal command.
+
+For private applications, configure the token once with
+`sudo myinstall auth setup`. It validates the hidden input and stores only
+`/srv/nas/secrets/myinstall.env` with mode `0600`.
 
 The application bootstrap downloads a pinned `myinstall` release bundle and
 verifies its SHA-256. Target prerequisites depend on the manifest runtime:

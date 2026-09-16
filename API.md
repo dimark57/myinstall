@@ -36,6 +36,7 @@ myinstall --plan
 myinstall --doctor
 myinstall --update
 myinstall APP --update
+myinstall auth setup
 myinstall secret ensure --manifest PATH
 myinstall secret rotate --manifest PATH --name database --confirm
 myinstall secret remove --manifest PATH --name KEY --confirm
@@ -50,6 +51,8 @@ runtime is absent, and upgrades to the latest release when the runtime is
 already installed. Private release sources use `MYINSTALL_GITHUB_TOKEN`.
 The public catalog contains only non-secret metadata; private GitHub release
 and Compose requests use that token.
+`myinstall auth setup` validates a hidden token prompt and persists it with
+mode `0600` in `/srv/nas/secrets/myinstall.env`.
 `sudo myinstall APP`
 uses the same behavior with privileges supplied by the operator; myinstall
 does not alter sudoers or acquire privileges implicitly.

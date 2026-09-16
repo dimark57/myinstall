@@ -26,6 +26,28 @@ def repository(source: str) -> str:
     return value
 
 
+def validate_token(token: str) -> str | None:
+    """Validate a token without printing it and return the GitHub login."""
+    previous = os.environ.get("MYINSTALL_GITHUB_TOKEN")
+    os.environ["MYINSTALL_GITHUB_TOKEN"] = token
+    try:
+        status, body, _ = _request("https://api.github.com/user")
+    except ValueError:
+        return None
+    finally:
+        if previous is None:
+            os.environ.pop("MYINSTALL_GITHUB_TOKEN", None)
+        else:
+            os.environ["MYINSTALL_GITHUB_TOKEN"] = previous
+    if status != 200:
+        return None
+    try:
+        login = json.loads(body).get("login")
+    except (TypeError, json.JSONDecodeError):
+        return None
+    return str(login) if login else None
+
+
 def _request(url: str, *, etag: str | None = None) -> tuple[int, bytes, str | None]:
     headers = {"Accept": "application/vnd.github+json", "User-Agent": "myinstall"}
     token = os.environ.get("MYINSTALL_GITHUB_TOKEN")

@@ -47,6 +47,12 @@ def test_global_doctor_is_a_read_only_internal_flag() -> None:
     doctor.assert_called_once_with(None)
 
 
+def test_auth_setup_is_an_explicit_command() -> None:
+    with patch("myinstall.cli.auth.setup", return_value=0) as setup:
+        assert cli.main(["auth", "setup"]) == 0
+    setup.assert_called_once_with()
+
+
 def test_application_command_wrapper_delegates_update(tmp_path) -> None:
     manifest = tmp_path / "manifest.json"
     target = tmp_path / "bin" / "mytask"

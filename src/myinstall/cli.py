@@ -12,7 +12,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from . import catalog, __version__, discovery, github, manifest, native, postgres, runtime, secrets, service
+from . import auth, catalog, __version__, discovery, github, manifest, native, postgres, runtime, secrets, service
 
 MANUAL = """myinstall — host-side application installer
 
@@ -665,6 +665,9 @@ def build_parser() -> argparse.ArgumentParser:
     update.add_argument("app_id")
     update.add_argument("--version")
     update.add_argument("--image")
+    auth_parser = sub.add_parser("auth")
+    auth_sub = auth_parser.add_subparsers(dest="auth_action", required=True)
+    auth_sub.add_parser("setup", help="configure a GitHub token for private releases")
     app = sub.add_parser("app")
     app_sub = app.add_subparsers(dest="app_action", required=True)
     app_install = app_sub.add_parser("install")
@@ -674,17 +677,19 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    auth.load()
     raw_argv = list(sys.argv[1:] if argv is None else argv)
     if raw_argv == ["--update"]:
         return do_self_update()
     if len(raw_argv) >= 2 and raw_argv[0] not in {
         "plan", "doctor", "check", "install", "upgrade", "rollback", "remove",
         "apps", "app", "secret", "sync", "update",
+        "auth",
     } and raw_argv[1] == "--update":
         raw_argv = ["update", raw_argv[0], *raw_argv[2:]]
     commands = {
         "plan", "doctor", "check", "install", "upgrade", "rollback", "remove",
-        "apps", "app", "secret", "sync", "update",
+        "apps", "app", "secret", "sync", "update", "auth",
     }
     if raw_argv and raw_argv[0] not in commands and not raw_argv[0].startswith("-"):
         raw_argv.insert(0, "sync")
@@ -707,6 +712,8 @@ def main(argv: list[str] | None = None) -> int:
             return do_apps_upgrade(roots, args.confirm)
         if args.command == "app":
             return do_app_install(args.manifest_url, args.confirm)
+        if args.command == "auth":
+            return auth.setup()
         if args.command == "sync":
             return do_app_sync(args.app_id, args.version, args.image)
         if args.command == "update":
