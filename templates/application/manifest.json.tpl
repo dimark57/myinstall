@@ -29,7 +29,7 @@
   "upgrade_command": [],
   "postgres": {
     "mode": "shared",
-    "cluster_name": "nas-main",
+    "cluster_name": "nas-postgres",
     "infrastructure_compose_path": "/srv/nas/stacks/infrastructure/postgres/compose.yml",
     "service_name": "postgres",
     "network_name": "nas-infra",

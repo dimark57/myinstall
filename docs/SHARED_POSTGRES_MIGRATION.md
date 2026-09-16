@@ -8,7 +8,7 @@ application health have been verified.
 ## Target contract
 
 - Infrastructure Compose: `/srv/nas/stacks/infrastructure/postgres/compose.yml`
-- Cluster: `nas-main`
+- Cluster: `nas-postgres`
 - Service: `postgres`
 - Network: `nas-infra`
 - Data: `/srv/nas/data/postgres`

@@ -2,6 +2,15 @@
 
 All notable changes to `myinstall` are documented here.
 
+## [0.3.5] - 2026-09-16
+
+### Added
+
+- Allow first-time Docker installs to receive an immutable image digest from
+  CI with `install --image`.
+- Enforce the canonical NAS application Compose and shared PostgreSQL network
+  contract.
+
 ## [0.3.4] - 2026-09-16
 
 ### Fixed
