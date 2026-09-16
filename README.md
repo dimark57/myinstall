@@ -150,6 +150,8 @@ need Docker.
 - `catalog/` — public non-secret application catalog used for first install;
 - `templates/application/` — files generated into application repositories;
   Docker Compose template is used only for `runtime=docker|mixed`;
+- `.cursor/skills/application-compose-contract/` — reusable application
+  Compose-contract skill and validation script for Docker/mixed integrations;
 - `templates/infrastructure/postgres/compose.yml` — canonical shared
   PostgreSQL 16 infrastructure stack;
 - `examples/` — complete application integration examples;

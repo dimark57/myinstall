@@ -88,6 +88,15 @@ The application itself must expose the standard operator CLI:
 The detailed behavior and exit-code contract is in
 `docs/APPLICATION_CLI_CONTRACT.md`.
 
+Docker and mixed-runtime applications must also publish the Compose template
+at `deploy/bootstrap/stack-compose.yml`. The template is the source of truth;
+generated `docker-compose.yml` files must not be edited manually. Before a task
+is completed and before every release, the application must run a validation
+that checks the manifest/template correspondence, materializes the template,
+and runs `docker compose config` when Docker is available. The validation must
+fail when `{{IMAGE}}` is absent or any Compose contract rule is violated.
+Release publication is prohibited until this validation passes.
+
 Use `sudo myinstall <app>` only when the operator intentionally needs elevated
 host access. `myinstall` does not modify sudoers or silently elevate itself.
 
@@ -101,6 +110,8 @@ never put in a manifest, command argument, image, or diagnostic output.
 
 - GHCR push without a GitHub Release;
 - mutable-only image references such as `latest`;
+- release publication without a passing Compose contract validation for
+  Docker/mixed applications;
 - application-specific update registries;
 - release discovery from a stack directory or a checked-in production secret;
 - rollout before the tagged test gate is green.

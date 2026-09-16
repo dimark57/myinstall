@@ -1,0 +1,81 @@
+# managed-by: skill-cd recipe=vps-ssh
+# SoT: this file (skill-cd). Secrets SSH_* — cd-skill setup-github-secrets --confirm.
+# No GHCR. Tags publish a GitHub Release. Runtime update is operator-run via
+# `myinstall <app>` or `sudo myinstall <app>`.
+# Job gate: keep in sync with nas-ghcr.yml.
+name: Deploy
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+concurrency: production-deploy
+
+jobs:
+  gate:
+    # keep in sync with nas-ghcr.yml (doc-14 §3.3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      need_tests: ${{ steps.decide.outputs.need_tests }}
+    steps:
+      - name: Prefer green push/PR tests on this SHA
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          SHA="${{ github.sha }}"
+          deadline=$((SECONDS + 90))
+          run_json=""
+          while true; do
+            run_json=$(gh run list --workflow tests.yml --json databaseId,headSha,event,status,conclusion,createdAt --limit 80 \
+              | jq -c --arg sha "$SHA" '[.[] | select(.headSha == $sha and (.event == "push" or .event == "pull_request"))] | sort_by(.createdAt) | reverse | .[0] // empty')
+            if [[ -n "${run_json}" && "${run_json}" != "null" ]]; then
+              break
+            fi
+            if (( SECONDS >= deadline )); then
+              echo "need_tests=true" >> "$GITHUB_OUTPUT"
+              echo "no push/PR run after 90s; fallback workflow_call"
+              exit 0
+            fi
+            sleep 5
+          done
+          status=$(echo "$run_json" | jq -r '.status')
+          conclusion=$(echo "$run_json" | jq -r '.conclusion // empty')
+          rid=$(echo "$run_json" | jq -r '.databaseId')
+          if [[ "$status" == "in_progress" || "$status" == "queued" || "$status" == "waiting" || "$status" == "pending" ]]; then
+            gh run watch "$rid" || true
+            conclusion=$(gh run view "$rid" --json conclusion --jq '.conclusion // empty')
+          fi
+          if [[ "$conclusion" == "success" ]]; then
+            echo "need_tests=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ "$conclusion" == "failure" ]]; then
+            echo "push/PR tests failed for $SHA" >&2
+            exit 1
+          fi
+          echo "need_tests=true" >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: gate
+    if: needs.gate.outputs.need_tests == 'true'
+    uses: ./.github/workflows/tests.yml
+
+  publish-release:
+    needs: [gate, test]
+    if: always() && needs.gate.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
