@@ -894,7 +894,7 @@ def do_helper_install(app_id: str, test: bool) -> int:
         return output({"ok": False, "error": "no stable helper release found"}, 1)
     selected = github.asset(release, str(config.get("asset_pattern", "")))
     checksum = github.asset_sha256(release, selected)
-    temporary = native.download({"artifact": {"url": selected["browser_download_url"], "sha256": checksum}})
+    temporary = native.download({"artifact": {"url": selected["url"], "sha256": checksum}})
     _, uid, home = service._launch_user()
     target = home / "Library" / "Application Support" / "myinstall" / app_id / "helper"
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -915,7 +915,7 @@ def do_helper_install(app_id: str, test: bool) -> int:
         menu_asset = github.asset(release, str(menu_config.get("asset_pattern", "")))
         menu_checksum = github.asset_sha256(release, menu_asset)
         menu_temporary = native.download(
-            {"artifact": {"url": menu_asset["browser_download_url"], "sha256": menu_checksum}}
+            {"artifact": {"url": menu_asset["url"], "sha256": menu_checksum}}
         )
         menu_target = home / "Library" / "Application Support" / "myinstall" / app_id / "menubar"
         os.replace(menu_temporary, menu_target)
