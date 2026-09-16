@@ -49,8 +49,8 @@ def find_app_manifest(app_id: str, roots: list[Path] | None = None) -> Path:
     if not matches:
         raise ValueError(f"application manifest not found: {app_id}")
     if len(matches) > 1:
-        paths = ", ".join(str(path) for path in matches)
-        raise ValueError(f"multiple manifests found for {app_id}: {paths}")
+        match_paths = ", ".join(str(path) for path in matches)
+        raise ValueError(f"multiple manifests found for {app_id}: {match_paths}")
     return matches[0]
 
 
