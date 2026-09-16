@@ -50,8 +50,8 @@ jobs:
           conclusion=$(echo "$run_json" | jq -r '.conclusion // empty')
           rid=$(echo "$run_json" | jq -r '.databaseId')
           if [[ "$status" == "in_progress" || "$status" == "queued" || "$status" == "waiting" || "$status" == "pending" ]]; then
-            gh run watch "$rid" || true
-            conclusion=$(gh run view "$rid" --json conclusion --jq '.conclusion // empty')
+            gh run watch "$rid" --repo "$REPO" || true
+            conclusion=$(gh run view "$rid" --repo "$REPO" --json conclusion --jq '.conclusion // empty')
           fi
           if [[ "$conclusion" == "success" ]]; then
             echo "need_tests=false" >> "$GITHUB_OUTPUT"
