@@ -29,7 +29,19 @@ def download(manifest: dict[str, Any]) -> Path:
     os.close(fd)
     path = Path(temporary)
     try:
-        with urllib.request.urlopen(url, timeout=600) as response, path.open("wb") as stream:
+        request = urllib.request.Request(
+            url,
+            headers={
+                "Accept": "application/octet-stream",
+                "User-Agent": "myinstall",
+                **(
+                    {"Authorization": f"Bearer {os.environ['MYINSTALL_GITHUB_TOKEN']}"}
+                    if "github.com" in url and os.environ.get("MYINSTALL_GITHUB_TOKEN")
+                    else {}
+                ),
+            },
+        )
+        with urllib.request.urlopen(request, timeout=600) as response, path.open("wb") as stream:
             shutil.copyfileobj(response, stream)
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         if digest != expected:

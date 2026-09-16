@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "current_version": "0.3.24",
+  "current_version": "0.3.25",
   "targets": [
     {
       "path": "src/myinstall/__init__.py",
-      "search": "__version__ = \"0.3.23\"",
+      "search": "__version__ = \"0.3.24\"",
       "replace": "__version__ = \"{version}\""
     },
     {
       "path": "README.md",
-      "search": "Latest release: `v0.3.23`",
+      "search": "Latest release: `v0.3.24`",
       "replace": "Latest release: `v{version}`"
     }
   ],
