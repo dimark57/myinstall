@@ -19,8 +19,27 @@ DEFAULT_ROOTS = (
 def find_app_manifest(app_id: str, roots: list[Path] | None = None) -> Path:
     """Find the unique manifest whose application id matches ``app_id``."""
     normalized = app_id.casefold()
+    if not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_-]*", app_id):
+        raise ValueError(f"unsafe application name: {app_id}")
+
+    # Uses paths.app_stack() from paths.py to resolve the canonical per-app
+    # location without recursively scanning large NAS project directories.
+    search_roots = roots or DEFAULT_ROOTS
+    candidates: set[Path] = {
+        paths.app_stack(app_id) / "manifest.json",
+    }
+    for root in search_roots:
+        candidates.update(
+            {
+                root / app_id / "manifest.json",
+                root / "apps" / app_id / "manifest.json",
+            }
+        )
+
     matches = []
-    for path in find_manifests(roots):
+    for path in sorted(candidates):
+        if not path.is_file():
+            continue
         try:
             data = manifest.load(path)
         except (OSError, ValueError):
