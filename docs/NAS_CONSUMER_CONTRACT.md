@@ -4,6 +4,11 @@
 declare the manifest contract. CI builds and publishes the immutable image;
 the NAS runner invokes `myinstall`.
 
+The NAS infrastructure owner retains Caddy/DNS, external networks, storage,
+backups, the shared PostgreSQL service, and the NAS runner. The current
+consumer cutover inventory is in
+`docs/NAS_APPLICATION_MIGRATION_STATUS.md`.
+
 ## Required application repository files
 
 ```text
@@ -35,10 +40,11 @@ deployment workflow must pass the immutable image digest to:
 myinstall upgrade --manifest ... --version vX.Y.Z --image IMAGE@sha256:... --confirm
 ```
 
-The legacy stack under `myNAS/stacks/apps/mythings` is not equivalent to this
-contract: it owns PostgreSQL, uses a local `.env`, and runs Compose directly.
-It must not be used for production after cutover. Use
-`docs/SHARED_POSTGRES_MIGRATION.md` for the explicit dump/restore cutover.
+The former legacy stack under `myNAS/stacks/apps/mythings` was not equivalent
+to this contract: it owned PostgreSQL, used a local `.env`, and ran Compose
+directly. Its tracked files were removed from myNAS without deleting runtime
+data. Use `docs/SHARED_POSTGRES_MIGRATION.md` for any remaining explicit
+dump/restore cutover.
 
 The audited `myNAS` and `mytask` worktrees contain unrelated uncommitted WIP,
 including legacy stack edits and deletions. The cutover is intentionally

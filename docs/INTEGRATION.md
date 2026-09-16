@@ -11,8 +11,9 @@ deploy/bootstrap/app                 # native/systemd/launchd artifact
 
 The application owns its release artifact, health endpoint, migrations, and
 application-specific configuration. `myinstall` owns host paths, generated
-secrets, locking, runtime lifecycle, shared PostgreSQL infrastructure and
-application credentials, redacted diagnostics, and rollback orchestration.
+secrets, locking, application runtime lifecycle, application credentials,
+redacted diagnostics, and rollback orchestration. The NAS infrastructure owner
+owns the PostgreSQL service, Docker networks, storage, backups, Caddy, and DNS.
 The application owns only its database/role declaration; its Compose must not
 contain a PostgreSQL service.
 

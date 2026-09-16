@@ -54,9 +54,11 @@ its database and LOGIN role:
 }
 ```
 
-`myinstall` owns the shared infrastructure lifecycle and app role/database
-provisioning. The application owns only its declaration. Skills describe the
-usage contract, while CI/CD owns release and immutable image delivery.
+`myNAS` owns the shared PostgreSQL service lifecycle, storage, networks, and
+backups. `myinstall` provisions and rotates only application roles, databases,
+and credentials through the infrastructure contract. The application owns only
+its declaration. Skills describe the usage contract, while CI/CD owns release
+and immutable image delivery.
 Application Compose must not contain a PostgreSQL service. Install, upgrade,
 rollback, and remove never delete, recreate, stop, or `down` the shared stack.
 PostgreSQL data migration is an explicit operator workflow; it is never an
@@ -92,6 +94,8 @@ need Docker.
   PostgreSQL 16 infrastructure stack;
 - `examples/` — complete application integration examples;
 - `docs/NAS_CONSUMER_CONTRACT.md` — NAS application ownership and cutover rules;
+- `docs/NAS_INFRASTRUCTURE_CONTRACT.md` — infrastructure/application ownership;
+- `docs/NAS_APPLICATION_MIGRATION_STATUS.md` — consumer cutover inventory;
 - `docs/SHARED_POSTGRES_MIGRATION.md` — explicit legacy-instance migration
   runbook;
 - `.github/workflows/` — test and immutable release automation;
