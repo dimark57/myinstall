@@ -1,0 +1,56 @@
+{
+  "schema_version": "1",
+  "apps": {
+    "mytask": {
+      "schema_version": "1.0",
+      "kind": "application",
+      "app": "mytask",
+      "zone": "apps",
+      "runtime": "docker",
+      "release_source": "dimark57/mytask",
+      "release_channel": "stable",
+      "current_version": "v0.1.61",
+      "image_template": "ghcr.io/dimark57/mytask:{tag}",
+      "image": "ghcr.io/dimark57/mytask:v0.1.61",
+      "stack_path": "/srv/nas/stacks/apps/mytask",
+      "data_path": "/srv/nas/data/mythings",
+      "secret_path": "/srv/nas/secrets/mytask.env",
+      "secret_mount": "/run/mytask.env",
+      "compose_source_url": "https://raw.githubusercontent.com/dimark57/mytask/main/deploy/bootstrap/stack-compose.yml",
+      "required_secrets": ["DATABASE_URL"],
+      "generated_secrets": [],
+      "healthcheck": {
+        "url": "http://127.0.0.1:8090/api/health",
+        "timeout_seconds": 60,
+        "retries": 5
+      },
+      "cli": {
+        "name": "mytask",
+        "commands": [
+          "--version",
+          "--help",
+          "--man",
+          "--doctor",
+          "--update"
+        ]
+      },
+      "postgres": {
+        "mode": "shared",
+        "cluster_name": "nas-main",
+        "infrastructure_compose_path": "/srv/nas/stacks/infrastructure/postgres/compose.yml",
+        "service_name": "postgres",
+        "network_name": "nas-infra",
+        "admin_user": "postgres",
+        "admin_database": "postgres",
+        "admin_secret_path": "/srv/nas/secrets/postgres.env",
+        "admin_password_key": "POSTGRES_PASSWORD",
+        "app_role": "mythings",
+        "app_database": "mythings",
+        "role_password_key": "DATABASE_PASSWORD",
+        "database_url_key": "DATABASE_URL",
+        "host": "postgres",
+        "port": "5432"
+      }
+    }
+  }
+}

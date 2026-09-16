@@ -112,14 +112,49 @@ def lock(stack_path: Path) -> Iterator[None]:
             fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
 
 
+def ensure_registry_login(image: str) -> bool:
+    """Login to a private OCI registry without exposing the token."""
+    registry = image.split("/", 1)[0] if "/" in image else ""
+    token = os.environ.get("MYINSTALL_GITHUB_TOKEN")
+    if registry != "ghcr.io" or not token:
+        return True
+    username = os.environ.get("MYINSTALL_GITHUB_USER", "x-access-token")
+    try:
+        result = subprocess.run(
+            ["docker", "login", registry, "--username", username, "--password-stdin"],
+            input=token + "\n",
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=60,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
+
+
 def materialize(manifest_path: Path, manifest: dict[str, Any]) -> Path:
     source_url = manifest.get("compose_source_url")
     source = manifest_path.parent.parent.parent / str(
         manifest.get("compose_source", "deploy/bootstrap/stack-compose.yml")
     )
+
     target = Path(manifest["stack_path"]) / "docker-compose.yml"
     if source_url:
-        with urllib.request.urlopen(str(source_url), timeout=30) as response:
+        request = urllib.request.Request(
+            str(source_url),
+            headers={
+                "Accept": "text/plain",
+                "User-Agent": "myinstall",
+                **(
+                    {"Authorization": f"Bearer {os.environ['MYINSTALL_GITHUB_TOKEN']}"}
+                    if os.environ.get("MYINSTALL_GITHUB_TOKEN")
+                    and "github" in str(source_url).lower()
+                    else {}
+                ),
+            },
+        )
+        with urllib.request.urlopen(request, timeout=30) as response:
             text = response.read().decode("utf-8")
     elif source.is_file():
         text = source.read_text(encoding="utf-8")

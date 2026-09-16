@@ -45,8 +45,12 @@ All mutating operations acquire the per-application lock. Secret values and
 connection strings are never present in JSON output or command arguments.
 
 `myinstall APP` is the idempotent operator entrypoint: it discovers the
-application manifest, installs when the runtime is absent, and upgrades to the
-latest release when the runtime is already installed. `sudo myinstall APP`
+application manifest locally or from the public catalog, installs when the
+runtime is absent, and upgrades to the latest release when the runtime is
+already installed. Private release sources use `MYINSTALL_GITHUB_TOKEN`.
+The public catalog contains only non-secret metadata; private GitHub release
+and Compose requests use that token.
+`sudo myinstall APP`
 uses the same behavior with privileges supplied by the operator; myinstall
 does not alter sudoers or acquire privileges implicitly.
 

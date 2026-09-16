@@ -12,7 +12,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from . import __version__, discovery, github, manifest, native, postgres, runtime, secrets, service
+from . import catalog, __version__, discovery, github, manifest, native, postgres, runtime, secrets, service
 
 MANUAL = """myinstall — host-side application installer
 
@@ -275,6 +275,8 @@ def do_install(path: Path, data: dict[str, Any]) -> int:
             return output({"ok": False, "error": "invalid Compose contract", "details": compose_errors}, 1)
         if not runtime.compose(compose, ["config"], timeout=60):
             return output({"ok": False, "error": "docker compose config failed"}, 1)
+        if not runtime.ensure_registry_login(str(data["image"])):
+            return output({"ok": False, "error": "private image registry login failed"}, 1)
         if not runtime.compose(compose, ["pull"], timeout=600):
             return output({"ok": False, "error": "image pull failed"}, 1)
         if not runtime.compose(compose, ["up", "-d"], timeout=300):
@@ -373,6 +375,9 @@ def do_upgrade(path: Path, data: dict[str, Any], image: str | None, version: str
         if compose_errors:
             compose.write_text(before, encoding="utf-8")
             return output({"ok": False, "error": "invalid Compose contract", "details": compose_errors}, 1)
+        if not runtime.ensure_registry_login(image):
+            compose.write_text(before, encoding="utf-8")
+            return output({"ok": False, "error": "private image registry login failed"}, 1)
         if not runtime.compose(compose, ["pull"], timeout=600) or not runtime.compose(
             compose, ["up", "-d"], timeout=300
         ):
@@ -454,11 +459,29 @@ def roots_from_args(values: list[Path] | None) -> list[Path] | None:
     return [path.expanduser().resolve() for path in values] if values else None
 
 
+def resolve_app_manifest(app_id: str) -> tuple[Path, dict[str, Any]]:
+    """Resolve a local manifest or materialize one from the public catalog."""
+    try:
+        path = discovery.find_app_manifest(app_id)
+        return path, manifest.load(path)
+    except ValueError as error:
+        if "application manifest not found" not in str(error):
+            raise
+    entry = catalog.fetch(app_id)
+    if entry is None:
+        raise ValueError(f"application manifest not found: {app_id}")
+    data = dict(entry)
+    stack = Path(str(data["stack_path"]))
+    path = stack / "manifest.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return path, manifest.load(path)
+
+
 def do_app_sync(app_id: str, version: str | None, image: str | None) -> int:
     """Install an absent application or upgrade an existing one."""
     # Uses find_app_manifest() from discovery.py and release lookup from github.py.
-    path = discovery.find_app_manifest(app_id)
-    data = manifest.load(path)
+    path, data = resolve_app_manifest(app_id)
     install_app_command(path, data)
     stack = Path(str(data["stack_path"]))
     installed = (stack / "docker-compose.yml").is_file() or (

@@ -64,6 +64,34 @@ def test_application_command_wrapper_delegates_update(tmp_path) -> None:
     assert "myinstall mytask --update" in wrapper
 
 
+def test_missing_local_manifest_is_materialized_from_public_catalog(tmp_path) -> None:
+    entry = {
+        "schema_version": "1.0",
+        "kind": "application",
+        "app": "mytask",
+        "zone": "apps",
+        "runtime": "docker",
+        "image": "ghcr.io/example/mytask:v1.2.3",
+        "stack_path": str(tmp_path / "stack"),
+        "data_path": str(tmp_path / "data"),
+        "secret_path": str(tmp_path / "secret.env"),
+        "secret_mount": "/run/mytask.env",
+        "required_secrets": [],
+        "healthcheck": {"url": "http://127.0.0.1:9/health"},
+        "cli": {"name": "mytask", "commands": ["--version"]},
+    }
+    with patch(
+        "myinstall.cli.discovery.find_app_manifest",
+        side_effect=ValueError("application manifest not found: mytask"),
+    ), \
+        patch("myinstall.cli.catalog.fetch", return_value=entry), \
+        patch("myinstall.cli.install_app_command"), \
+        patch("myinstall.cli.do_install", return_value=0) as install:
+        assert cli.main(["mytask"]) == 0
+    install.assert_called_once()
+    assert (tmp_path / "stack" / "manifest.json").is_file()
+
+
 def test_help_is_an_internal_flag(capsys) -> None:
     with pytest.raises(SystemExit) as exit_info:
         cli.main(["--help"])

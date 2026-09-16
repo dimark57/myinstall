@@ -89,9 +89,11 @@ myinstall apps check --root /srv/nas/stacks
 myinstall apps upgrade --root /srv/nas/stacks --confirm
 ```
 
-`myinstall <app>` finds the application's manifest in the canonical NAS roots.
+`myinstall <app>` first searches the canonical NAS roots. If no local manifest
+exists, it resolves non-secret metadata from the public `catalog/apps.json`.
 It installs an absent application and upgrades an installed application to the
-latest release. Use `sudo myinstall <app> --update` only when the operator has
+latest release. Private GitHub releases require `MYINSTALL_GITHUB_TOKEN`; the
+application repository itself is not cloned. Use `sudo myinstall <app> --update` only when the operator has
 intentionally prepared the target with elevated privileges; the command does
 not grant or manage sudo permissions itself.
 
@@ -109,6 +111,7 @@ need Docker.
 
 - `src/myinstall/` — public CLI and runtime adapters;
 - `schema/` — versioned application manifest schema;
+- `catalog/` — public non-secret application catalog used for first install;
 - `templates/application/` — files generated into application repositories;
   Docker Compose template is used only for `runtime=docker|mixed`;
 - `templates/infrastructure/postgres/compose.yml` — canonical shared

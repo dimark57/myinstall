@@ -69,6 +69,12 @@ myinstall myhealth
 myinstall myotherapp
 ```
 
+The public application catalog is maintained at
+`catalog/apps.json`. It contains only non-secret manifest metadata. A private
+`release_source` is resolved through the GitHub Releases API using
+`MYINSTALL_GITHUB_TOKEN`; the application repository does not need to be
+cloned onto the host.
+
 The application itself must expose the standard operator CLI:
 
 ```text

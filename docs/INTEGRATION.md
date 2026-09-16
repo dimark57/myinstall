@@ -56,6 +56,10 @@ vMAJOR.MINOR.PATCH tag
 
 `release_source` must identify that GitHub repository. A GHCR image tag
 without a matching GitHub Release is not discoverable by `myinstall`.
+First install may resolve the non-secret manifest from the public
+`myinstall/catalog/apps.json`; the application repository does not need to be
+cloned onto the target. Private release and Compose URLs use
+`MYINSTALL_GITHUB_TOKEN`.
 Operators use the same idempotent command for every application:
 
 ```bash
