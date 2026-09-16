@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import sys
 import tempfile
@@ -17,6 +18,12 @@ def output(value: dict[str, Any], code: int = 0) -> int:
     return code
 
 
+def persist_manifest(path: Path, data: dict[str, Any]) -> None:
+    temporary = path.with_name(f".{path.name}.new")
+    temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.replace(temporary, path)
+
+
 def report(manifest_path: Path, data: dict[str, Any]) -> dict[str, Any]:
     runtime_kind = str(data.get("runtime", "native"))
     stack = Path(data["stack_path"])
@@ -25,6 +32,13 @@ def report(manifest_path: Path, data: dict[str, Any]) -> dict[str, Any]:
     compose = manifest.compose_source(manifest_path, data)
     values = secrets.read(secret)
     missing = [key for key in data["required_secrets"] if key not in values]
+    missing_dependencies = runtime.dependencies(data)
+    postgres_config = data.get("postgres") or {}
+    postgres_ready = (
+        postgres.tcp_ready(data, values)
+        if isinstance(postgres_config, dict) and postgres_config.get("mode") in {"shared", "dedicated"}
+        else None
+    )
     checks = [
         {
             "id": "manifest.paths",
@@ -59,17 +73,56 @@ def report(manifest_path: Path, data: dict[str, Any]) -> dict[str, Any]:
             },
         },
         {
+            "id": "runtime.dependencies",
+            "status": "fail" if missing_dependencies else "pass",
+            "actual": missing_dependencies,
+        },
+        {
             "id": "runtime.compose",
             "status": (
                 "pass"
-                if runtime_kind in {"docker", "mixed"} and compose.is_file()
+                if runtime_kind in {"docker", "mixed"}
+                and (compose.is_file() or data.get("compose_source_url"))
                 else "warn"
                 if runtime_kind in {"docker", "mixed"}
                 else "not_applicable"
             ),
             "actual": {"runtime": runtime_kind, "compose": str(compose)},
         },
+        {
+            "id": "runtime.health",
+            "status": (
+                "pass"
+                if runtime.health(data)
+                else "warn"
+                if not stack.exists()
+                else "fail"
+            ),
+            "actual": data["healthcheck"].get("url"),
+        },
+        {
+            "id": "postgres.ready",
+            "status": (
+                "not_applicable"
+                if postgres_ready is None
+                else "pass"
+                if postgres_ready
+                else "fail"
+            ),
+            "actual": postgres_ready,
+        },
     ]
+    if isinstance(data.get("postgres"), dict):
+        checks.extend(postgres.doctor(data, values))
+        if runtime_kind in {"docker", "mixed"} and compose.is_file():
+            compose_errors = runtime.validate_compose(compose, data)
+            checks.append(
+                {
+                    "id": "postgres.app_compose",
+                    "status": "fail" if any("PostgreSQL service" in item for item in compose_errors) else "pass",
+                    "actual": [item for item in compose_errors if "PostgreSQL service" in item],
+                }
+            )
     return {
         "schema_version": "1.0",
         "app": data["app"],
@@ -139,8 +192,39 @@ def do_install(path: Path, data: dict[str, Any]) -> int:
         return output(result, 0 if healthy else 1)
 
 
+def resolve_release(data: dict[str, Any], version: str) -> dict[str, Any]:
+    source = data.get("release_source")
+    if not source:
+        raise ValueError("version upgrade requires release_source in manifest")
+    release = github.by_tag(str(source), version)
+    updated = dict(data)
+    if data.get("runtime") in {"native", "systemd", "launchd"}:
+        selected = github.asset(release, data.get("release_asset_pattern"))
+        updated["artifact"] = {
+            **dict(data["artifact"]),
+            "url": selected["browser_download_url"],
+            "sha256": github.asset_sha256(release, selected),
+        }
+    elif data.get("runtime") in {"docker", "mixed"}:
+        template = str(data.get("image_template", ""))
+        if not template:
+            raise ValueError("version upgrade requires image_template for Docker runtime")
+        updated["image"] = template.format(tag=release.tag, version=release.tag)
+    return updated
+
+
 def do_upgrade(path: Path, data: dict[str, Any], image: str | None, version: str | None) -> int:
     runtime_kind = str(data.get("runtime", "native"))
+    if runtime_kind in {"native", "systemd", "launchd"} and not version:
+        return output({"ok": False, "error": "native upgrade requires --version"}, 1)
+    if runtime_kind in {"native", "systemd", "launchd"} and image:
+        return output({"ok": False, "error": "--image applies only to docker/mixed runtime"}, 1)
+    if runtime_kind in {"docker", "mixed"} and not image and not version:
+        return output({"ok": False, "error": "Docker upgrade requires --image or --version"}, 1)
+    if version:
+        data = resolve_release(data, version) if not image else data
+        if not image and data.get("runtime") in {"docker", "mixed"}:
+            image = str(data["image"])
     if runtime_kind in {"native", "systemd", "launchd"}:
         errors = manifest.validate_paths(data)
         if errors:
@@ -159,7 +243,23 @@ def do_upgrade(path: Path, data: dict[str, Any], image: str | None, version: str
                 return output({"ok": False, "error": "healthcheck failed; previous artifact restored"}, 1)
             ok, diagnostic = native.run_hook(data, "upgrade_command")
             if not ok:
+                if runtime_kind in {"systemd", "launchd"}:
+                    service.action(data, "stop")
+                Path(installed).write_bytes(previous)
+                if runtime_kind in {"systemd", "launchd"}:
+                    service.action(data, "restart")
                 return output({"ok": False, "error": "native upgrade hook failed", "diagnostic": diagnostic}, 1)
+            ok, diagnostic = native.run_hook(data, "migration_command")
+            if not ok:
+                if runtime_kind in {"systemd", "launchd"}:
+                    service.action(data, "stop")
+                Path(installed).write_bytes(previous)
+                if runtime_kind in {"systemd", "launchd"}:
+                    service.action(data, "restart")
+                return output({"ok": False, "error": "migration failed", "diagnostic": diagnostic}, 1)
+            if version:
+                data["current_version"] = version
+                persist_manifest(path, data)
             return output({"mode": "upgrade", "runtime": runtime_kind, "version": version or "current"})
     if runtime_kind not in {"docker", "mixed"}:
         return output({"ok": False, "error": "runtime does not support upgrade"}, 1)
@@ -191,36 +291,66 @@ def do_upgrade(path: Path, data: dict[str, Any], image: str | None, version: str
             compose.write_text(before, encoding="utf-8")
             runtime.compose(compose, ["up", "-d"], timeout=300)
             return output({"ok": False, "error": "healthcheck failed; previous compose restored"}, 1)
+        if version:
+            data["current_version"] = version
+            data["image"] = image
+            persist_manifest(path, data)
         return output({"mode": "upgrade", "image": image, "secrets_changed": False}, 0)
 
 
 def do_rollback(data: dict[str, Any]) -> int:
     runtime_kind = str(data.get("runtime", "native"))
-    if runtime_kind in {"native", "systemd", "launchd"}:
-        target = Path(str(data["install_path"]))
-        previous = target.with_name(f".{target.name}.previous")
-        if not previous.is_file():
-            return output({"ok": False, "error": "no previous native release"}, 1)
-        target.unlink(missing_ok=True)
-        previous.rename(target)
-        if runtime_kind in {"systemd", "launchd"}:
-            ok, diagnostic = service.action(data, "restart")
-            if not ok:
-                return output({"ok": False, "error": "rollback restart failed", "diagnostic": diagnostic}, 1)
-        return output({"mode": "rollback", "runtime": runtime_kind, "health": runtime.health(data)})
-    if runtime_kind in {"docker", "mixed"}:
-        stack = Path(data["stack_path"])
-        compose = stack / "docker-compose.yml"
-        backup = stack / ".myinstall.previous-compose"
-        if not backup.is_file() or not compose.is_file():
-            return output({"ok": False, "error": "no previous Docker release"}, 1)
-        current = compose.read_text(encoding="utf-8")
-        compose.write_text(backup.read_text(encoding="utf-8"), encoding="utf-8")
-        if not runtime.compose(compose, ["up", "-d"], timeout=300) or not runtime.health(data):
-            compose.write_text(current, encoding="utf-8")
-            return output({"ok": False, "error": "Docker rollback failed"}, 1)
-        return output({"mode": "rollback", "runtime": runtime_kind, "health": True})
+    stack = Path(data["stack_path"])
+    with runtime.lock(stack):
+        if runtime_kind in {"native", "systemd", "launchd"}:
+            target = Path(str(data["install_path"]))
+            previous = target.with_name(f".{target.name}.previous")
+            if not previous.is_file():
+                return output({"ok": False, "error": "no previous native release"}, 1)
+            target.unlink(missing_ok=True)
+            previous.rename(target)
+            if runtime_kind in {"systemd", "launchd"}:
+                ok, diagnostic = service.action(data, "restart")
+                if not ok:
+                    return output({"ok": False, "error": "rollback restart failed", "diagnostic": diagnostic}, 1)
+            healthy = runtime.health(data)
+            return output({"mode": "rollback", "runtime": runtime_kind, "health": healthy}, 0 if healthy else 1)
+        if runtime_kind in {"docker", "mixed"}:
+            compose = stack / "docker-compose.yml"
+            backup = stack / ".myinstall.previous-compose"
+            if not backup.is_file() or not compose.is_file():
+                return output({"ok": False, "error": "no previous Docker release"}, 1)
+            current = compose.read_text(encoding="utf-8")
+            compose.write_text(backup.read_text(encoding="utf-8"), encoding="utf-8")
+            if not runtime.compose(compose, ["up", "-d"], timeout=300) or not runtime.health(data):
+                compose.write_text(current, encoding="utf-8")
+                runtime.compose(compose, ["up", "-d"], timeout=300)
+                return output({"ok": False, "error": "Docker rollback failed"}, 1)
+            return output({"mode": "rollback", "runtime": runtime_kind, "health": True})
     return output({"ok": False, "error": "runtime does not support rollback"}, 1)
+
+
+def do_remove(path: Path, data: dict[str, Any]) -> int:
+    """Remove only application runtime state; shared infrastructure is never targeted."""
+    runtime_kind = str(data.get("runtime", "native"))
+    with runtime.lock(Path(data["stack_path"])):
+        if runtime_kind in {"docker", "mixed"}:
+            compose = runtime.materialize(path, data)
+            if not runtime.compose(compose, ["down"], timeout=300):
+                return output({"ok": False, "error": "application stack removal failed"}, 1)
+        elif runtime_kind in {"systemd", "launchd"}:
+            ok, diagnostic = service.action(data, "stop")
+            if not ok:
+                return output({"ok": False, "error": "service stop failed", "diagnostic": diagnostic}, 1)
+        return output(
+            {
+                "mode": "remove",
+                "runtime": runtime_kind,
+                "shared_postgres": "preserved",
+                "data": "preserved",
+                "secrets": "preserved",
+            }
+        )
 
 
 def roots_from_args(values: list[Path] | None) -> list[Path] | None:
@@ -333,10 +463,10 @@ def do_app_install(manifest_url: str, confirm: bool) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="myinstall")
     sub = parser.add_subparsers(dest="command", required=True)
-    for name in ("plan", "doctor", "check", "install", "upgrade", "rollback"):
+    for name in ("plan", "doctor", "check", "install", "upgrade", "rollback", "remove"):
         command = sub.add_parser(name)
         command.add_argument("--manifest", required=True, type=Path)
-        if name in {"install", "upgrade", "rollback"}:
+        if name in {"install", "upgrade", "rollback", "remove"}:
             command.add_argument("--confirm", action="store_true")
         if name == "upgrade":
             command.add_argument("--image")
@@ -402,6 +532,10 @@ def main(argv: list[str] | None = None) -> int:
             if not args.confirm:
                 return output({"ok": False, "error": "rollback requires --confirm"}, 1)
             return do_rollback(data)
+        if args.command == "remove":
+            if not args.confirm:
+                return output({"ok": False, "error": "remove requires --confirm"}, 1)
+            return do_remove(path, data)
         if args.action == "status":
             return output({"mode": "secret status", **secrets.status(data)})
         if args.action == "ensure":
@@ -422,16 +556,26 @@ def main(argv: list[str] | None = None) -> int:
                 values.pop(args.name, None)
                 secrets.write(Path(data["secret_path"]), values)
                 return output({"mode": "secret remove", "name": args.name})
-        values = secrets.read(Path(data["secret_path"]))
         with runtime.lock(Path(data["stack_path"])):
-            compose = runtime.materialize(path, data)
-            ok, updated, state = postgres.rotate(str(compose), data, values)
+            values = secrets.read(Path(data["secret_path"]))
+            postgres_config = data.get("postgres") or {}
+            app_compose = None
+            if data.get("runtime") in {"docker", "mixed"}:
+                app_compose = runtime.materialize(path, data)
+            admin_compose = str(postgres_config.get("admin_compose_path") or app_compose or "")
+            ok, updated, state = postgres.rotate(admin_compose, data, values)
             if not ok:
                 return output({"ok": False, "state": state}, 1)
             secrets.write(Path(data["secret_path"]), updated)
-            if not runtime.compose(compose, ["up", "-d"], timeout=300) or not runtime.health(data):
+            restarted = True
+            if app_compose is not None:
+                restarted = runtime.compose(app_compose, ["up", "-d"], timeout=300)
+            elif data.get("runtime") in {"systemd", "launchd"}:
+                restarted, _ = service.action(data, "restart")
+            healthy = restarted and runtime.health(data)
+            if not healthy:
                 secrets.write(Path(data["secret_path"]), values)
-                restored = postgres.restore_password(str(compose), data, values)
+                restored = postgres.restore_password(admin_compose, data, values)
                 return output(
                     {
                         "ok": False,

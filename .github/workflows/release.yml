@@ -27,6 +27,8 @@ jobs:
               --output "dist/myinstall-${GITHUB_REF_NAME}-${platform}"
           done
           (cd dist && sha256sum myinstall-* > SHA256SUMS)
+          chmod +x dist/myinstall-${GITHUB_REF_NAME}-linux-amd64
+          dist/myinstall-${GITHUB_REF_NAME}-linux-amd64 --help
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:

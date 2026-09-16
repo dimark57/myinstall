@@ -42,19 +42,55 @@
     "postgres": {
       "type": "object",
       "properties": {
-        "mode": {"enum": ["shared", "private"]},
+        "mode": {"enum": ["shared", "dedicated", "private"]},
         "cluster": {"type": "string"},
+        "cluster_name": {"type": "string"},
+        "infrastructure_compose_path": {"type": "string"},
+        "network_name": {"type": "string"},
+        "service_name": {"type": "string"},
+        "app_role": {"type": "string"},
+        "app_database": {"type": "string"},
+        "cluster_name": {"type": "string"},
         "admin_compose_path": {"type": "string"},
+        "infrastructure_compose_path": {"type": "string"},
+        "admin_secret_path": {"type": "string"},
         "service": {"type": "string"},
+        "service_name": {"type": "string"},
+        "network_name": {"type": "string"},
+        "admin_user": {"type": "string"},
+        "admin_database": {"type": "string"},
         "role": {"type": "string"},
+        "app_role": {"type": "string"},
         "database": {"type": "string"},
+        "app_database": {"type": "string"},
         "role_password_key": {"type": "string"},
         "database_url_key": {"type": "string"},
         "admin_password_key": {"type": "string"},
         "host": {"type": "string"},
-        "port": {"type": ["string", "integer"]}
+        "port": {"type": ["string", "integer"]},
+        "postgres_major": {"type": "string", "pattern": "^[0-9]+$"},
+        "data_path": {"type": "string"}
       }
-    }
+    },
+    "allOf": [
+      {
+        "if": {"properties": {"mode": {"const": "shared"}}},
+        "then": {
+          "required": [
+            "cluster_name",
+            "infrastructure_compose_path",
+            "service_name",
+            "network_name",
+            "admin_user",
+            "admin_database",
+            "app_role",
+            "app_database",
+            "role_password_key",
+            "database_url_key"
+          ]
+        }
+      }
+    ]
   },
   "additionalProperties": true,
   "allOf": [

@@ -107,14 +107,15 @@ class CoreTest(unittest.TestCase):
             "host": "shared-postgres",
         }
         values = {"DATABASE_URL": "postgresql://demo:existing@shared-postgres:5432/demo"}
-        with patch("myinstall.postgres.run", return_value=True) as mocked:
+        with patch(
+            "myinstall.postgres.ensure_shared",
+            return_value=(True, {**values, "DATABASE_PASSWORD": "existing"}, "shared PostgreSQL verified"),
+        ) as mocked:
             ok, updated, state = postgres.provision(data, values)
         self.assertTrue(ok)
-        self.assertEqual(state, "postgres provisioned")
+        self.assertEqual(state, "shared PostgreSQL verified")
         self.assertEqual(updated["DATABASE_PASSWORD"], "existing")
-        command = mocked.call_args.args[0]
-        self.assertIn("/srv/nas/stacks/services/postgres/docker-compose.yml", command)
-        self.assertNotIn("/srv/nas/data", " ".join(command))
+        mocked.assert_called_once_with(data, values)
 
     def test_manifest_rejects_unknown_runtime(self) -> None:
         value = json.loads(self.manifest_path.read_text(encoding="utf-8"))
@@ -122,6 +123,23 @@ class CoreTest(unittest.TestCase):
         self.manifest_path.write_text(json.dumps(value), encoding="utf-8")
         with self.assertRaises(ValueError):
             manifest.load(self.manifest_path)
+
+    def test_immutable_image_requires_digest_or_semver_tag(self) -> None:
+        self.assertTrue(manifest.immutable_image("ghcr.io/example/demo:v1.2.3"))
+        self.assertTrue(manifest.immutable_image("ghcr.io/example/demo@sha256:" + "a" * 64))
+        self.assertFalse(manifest.immutable_image("ghcr.io/example/demo@not-a-digest"))
+
+    def test_compose_contract_rejects_application_postgres(self) -> None:
+        compose = self.root / "docker-compose.yml"
+        compose.write_text(
+            "services:\n  postgres:\n    image: postgres:16\n"
+            "  app:\n    image: ghcr.io/example/demo:v1.2.3\n"
+            "    volumes:\n      - /srv/nas/secrets/demo.env:/run/demo.env:ro\n",
+            encoding="utf-8",
+        )
+        data = manifest.load(self.manifest_path)
+        data.update({"runtime": "docker", "image": "ghcr.io/example/demo:v1.2.3"})
+        self.assertTrue(any("must not own shared PostgreSQL" in error for error in runtime.validate_compose(compose, data)))
 
     def test_secret_parser_rejects_duplicate_keys(self) -> None:
         self.secret.parent.mkdir(parents=True)

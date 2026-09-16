@@ -6,7 +6,7 @@ Docker/Compose как один из runtime adapters устанавливаем�
 не требует Docker для запуска собственной CLI или для native/systemd
 проектов.
 
-Latest release: `v0.3.0`
+Latest release: `v0.3.1`
 
 - Install contract: [docs/INTEGRATION.md](docs/INTEGRATION.md)
 - Platform matrix: [PLATFORMS.md](PLATFORMS.md)
@@ -65,6 +65,7 @@ need Docker.
 - `templates/application/` — files generated into application repositories;
   Docker Compose template is used only for `runtime=docker|mixed`;
 - `examples/` — complete application integration examples;
+- `docs/NAS_CONSUMER_CONTRACT.md` — NAS application ownership and cutover rules;
 - `.github/workflows/` — test and immutable release automation;
 - `tests/` — deterministic, no-Docker smoke tests.
 

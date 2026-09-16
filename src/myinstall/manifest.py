@@ -28,7 +28,10 @@ RUNTIMES = frozenset({"native", "docker", "systemd", "launchd", "mixed", "none"}
 
 
 def immutable_image(value: str) -> bool:
-    return "@" in value or bool(re.search(r":v\d+\.\d+\.\d+$", value))
+    return bool(
+        re.search(r"@sha256:[a-fA-F0-9]{64}$", value)
+        or re.search(r":v\d+\.\d+\.\d+$", value)
+    )
 
 
 def load(path: Path) -> dict[str, Any]:
@@ -60,6 +63,12 @@ def load(path: Path) -> dict[str, Any]:
         artifact = value.get("artifact")
         if not isinstance(artifact, dict) or not str(artifact.get("url", "")).startswith("https://"):
             raise ValueError("service runtime requires an HTTPS artifact")
+    if isinstance(value.get("postgres"), dict):
+        from .postgres import validate_config
+
+        errors = validate_config(value)
+        if errors:
+            raise ValueError("; ".join(errors))
     if "release_source" in value and not value.get("current_version"):
         raise ValueError("release_source requires current_version")
     return value
@@ -97,4 +106,14 @@ def validate_paths(manifest: dict[str, Any]) -> list[str]:
         install_path = manifest.get("install_path")
         if not install_path:
             errors.append("native/service runtime requires install_path")
+    postgres = manifest.get("postgres")
+    if isinstance(postgres, dict):
+        for key in ("admin_compose_path", "infrastructure_compose_path", "admin_secret_path"):
+            if postgres.get(key):
+                path = Path(str(postgres[key])).expanduser().resolve(strict=False)
+                if not any(path == root or root in path.parents for root in roots):
+                    errors.append(f"{key} is outside canonical roots")
+        if postgres.get("mode") == "shared" and postgres.get("admin_secret_path"):
+            if Path(str(postgres["admin_secret_path"])).resolve() == Path(str(manifest["secret_path"])).resolve():
+                errors.append("shared PostgreSQL admin secret must be separate from application secret")
     return errors

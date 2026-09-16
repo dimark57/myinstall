@@ -2,6 +2,15 @@
 
 All notable changes to `myinstall` are documented here.
 
+## [0.3.1] - 2026-09-16
+
+### Fixed
+
+- Make version upgrades resolve the requested GitHub release and artifact.
+- Lock rollback and secret rotation operations and return failure on unhealthy rollback.
+- Support native/service migrations and PostgreSQL admin secrets from a separate path.
+- Add runtime dependency and health checks to `doctor`.
+
 ## [0.3.0] - 2026-09-16
 
 ### Added

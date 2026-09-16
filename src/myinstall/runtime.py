@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import fcntl
 import os
+import re
+import re
 import subprocess
 import time
 import urllib.request
@@ -40,6 +42,9 @@ def run_result(
     except (OSError, subprocess.SubprocessError):
         return False, "command could not be started"
     diagnostic = (result.stderr or result.stdout or "").strip()
+    # Docker/psql can echo connection strings or environment fragments.
+    diagnostic = re.sub(r"(?i)(postgres(?:ql)?://)[^\\s\"']+", r"\1[redacted]", diagnostic)
+    diagnostic = re.sub(r"(?i)(password|token|secret)([=:])[^\\s\"']+", r"\1\2[redacted]", diagnostic)
     return result.returncode == 0, diagnostic[-2000:]
 
 
@@ -56,7 +61,28 @@ def validate_compose(compose_file: Path, manifest: dict[str, Any]) -> list[str]:
             errors.append("compose does not contain the manifest image")
         if str(manifest["secret_path"]) not in text or str(manifest["secret_mount"]) not in text:
             errors.append("compose does not mount the configured secret file")
+        if re.search(r"(?m)^\s{2,}postgres(?:ql)?:\s*$", text):
+            errors.append("application Compose must not own shared PostgreSQL")
+        if re.search(r"(?m)^\s*-\s*[^#\n]*postgres[^#\n]*data", text, re.IGNORECASE):
+            errors.append("application Compose must not mount shared PostgreSQL data")
+        if re.search(r"(?m)^\\s{2,}(postgres|postgresql)\\s*:", text):
+            errors.append("application Compose must not declare a PostgreSQL service")
     return errors
+
+
+def dependencies(manifest: dict[str, Any]) -> list[str]:
+    runtime_kind = str(manifest.get("runtime", "native"))
+    required = []
+    if runtime_kind in {"docker", "mixed"}:
+        if shutil.which("docker") is None:
+            required.append("docker")
+        elif not run_result(["docker", "compose", "version"], timeout=20)[0]:
+            required.append("docker compose")
+    elif runtime_kind == "systemd" and shutil.which("systemctl") is None:
+        required.append("systemctl")
+    elif runtime_kind == "launchd" and shutil.which("launchctl") is None:
+        required.append("launchctl")
+    return required
 
 
 @contextmanager

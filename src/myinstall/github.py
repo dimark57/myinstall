@@ -69,6 +69,23 @@ def latest(source: str, *, channel: str = "stable", etag: str | None = None) -> 
     )
 
 
+def by_tag(source: str, tag: str) -> Release:
+    status, body, response_etag = _request(
+        f"https://api.github.com/repos/{repository(source)}/releases/tags/{tag.lstrip('v')}"
+    )
+    if status == 304:
+        raise ValueError("release lookup unexpectedly returned 304")
+    payload = json.loads(body)
+    if payload.get("prerelease"):
+        raise ValueError("requested release is prerelease")
+    return Release(
+        tag=str(payload["tag_name"]),
+        prerelease=bool(payload.get("prerelease", False)),
+        assets=tuple(payload.get("assets", [])),
+        etag=response_etag,
+    )
+
+
 def platform_name() -> str:
     system = platform.system().lower()
     machine = platform.machine().lower()

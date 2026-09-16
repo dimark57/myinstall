@@ -4,6 +4,7 @@ import hashlib
 import os
 import shutil
 import tempfile
+import re
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -41,6 +42,8 @@ def download(manifest: dict[str, Any]) -> Path:
 
 
 def install_artifact(manifest: dict[str, Any], *, version: str = "current") -> Path:
+    if version != "current" and not re.fullmatch(r"\d+\.\d+\.\d+", version.lstrip("v")):
+        raise ValueError("version must be a semantic vMAJOR.MINOR.PATCH value")
     target = Path(str(manifest["install_path"])).expanduser()
     release_dir = target.parent.parent / version.lstrip("v")
     release_dir.mkdir(parents=True, exist_ok=True)
