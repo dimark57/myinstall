@@ -87,8 +87,8 @@ def install_app_command(path: Path, data: dict[str, Any]) -> Path | None:
     if not isinstance(cli, dict) or not cli.get("name"):
         return None
     name = str(cli["name"])
-    if not re.fullmatch(r"[a-z][a-z0-9-]*", name):
-        raise ValueError("cli.name must be a lowercase kebab-case executable")
+    if not re.fullmatch(r"[a-z][a-z0-9_-]*", name):
+        raise ValueError("cli.name must be a lowercase application executable name")
     target = Path(str(cli.get("bin_path", f"/usr/local/bin/{name}"))).expanduser()
     manifest_path = shlex.quote(str(path))
     app = shlex.quote(str(data["app"]))

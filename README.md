@@ -100,17 +100,13 @@ sudo myinstall secret rotate --manifest deploy/bootstrap/manifest.json --name da
 sudo myinstall mytask
 sudo myinstall myqa
 sudo myinstall mytask --install
-sudo myinstall mytask --install --helper
-sudo myinstall mytask --install --helper --test
-sudo myinstall mytask helper start
-sudo myinstall mytask helper stop
-sudo myinstall mytask helper status
 sudo myinstall --uninstall
 myinstall --help
 sudo myinstall --plan
 sudo myinstall --doctor
 sudo myinstall --update
 sudo myinstall mytask --update
+sudo myinstall mytask_mac
 sudo myinstall auth setup
 sudo myinstall auth status
 sudo myinstall apps check --root /srv/nas/stacks
@@ -126,11 +122,9 @@ itself is not cloned. Use `sudo myinstall <app> --update` only when the operator
 intentionally prepared the target with elevated privileges; the command does
 not grant or manage sudo permissions itself.
 
-On macOS, `myinstall <app> --install` asks whether to install the Docker
-runtime or the native Mac helper. `--helper` and `--docker` select a mode
-without prompting. The helper is installed as a per-user LaunchAgent;
-`helper start|stop|status` controls it. `--test` selects the manifest's test
-server instead of production.
+`mytask` is the server-side application and is installed through its Docker
+runtime. `mytask_mac` is a separate local macOS application; it is not a
+helper or runtime mode of `mytask`.
 
 `sudo myinstall --uninstall` removes only the host-side `myinstall` executable.
 Installed applications remain untouched. The command asks whether the saved

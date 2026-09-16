@@ -4,7 +4,7 @@
   "required": ["schema_version", "app", "zone", "runtime", "stack_path", "data_path", "secret_path", "secret_mount", "required_secrets", "healthcheck"],
   "properties": {
     "schema_version": {"const": "1.0"},
-    "app": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+    "app": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
     "zone": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
     "image": {"type": "string"},
     "kind": {"type": "string"},
@@ -18,7 +18,7 @@
       "type": "object",
       "required": ["name", "commands"],
       "properties": {
-        "name": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        "name": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
         "commands": {
           "type": "array",
           "uniqueItems": true,
@@ -44,6 +44,18 @@
       "properties": {
         "asset_pattern": {"type": "string"},
         "label": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+$"}
+      },
+      "additionalProperties": false
+    },
+    "mac_runtime": {
+      "type": "object",
+      "required": ["asset_pattern", "label", "server", "data_dir", "port"],
+      "properties": {
+        "asset_pattern": {"type": "string"},
+        "label": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+$"},
+        "server": {"type": "string", "format": "uri"},
+        "data_dir": {"type": "string"},
+        "port": {"type": "integer", "minimum": 1, "maximum": 65535}
       },
       "additionalProperties": false
     },

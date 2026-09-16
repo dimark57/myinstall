@@ -32,19 +32,8 @@
           "--man",
           "--doctor",
           "--update",
-          "repo",
-          "helper"
+          "repo"
         ]
-      },
-      "helper": {
-        "asset_pattern": "mytask-helper-{version}-darwin-any",
-        "label": "com.mytask.helper",
-        "server": "https://mytask.digials.com",
-        "test_server": "http://127.0.0.1:8090/mythings"
-      },
-      "menu_bar": {
-        "asset_pattern": "mytask-menubar-{version}-darwin-arm64",
-        "label": "com.mytask.menubar"
       },
       "postgres": {
         "mode": "shared",
@@ -62,6 +51,38 @@
         "database_url_key": "DATABASE_URL",
         "host": "postgres",
         "port": "5432"
+      }
+    },
+    "mytask_mac": {
+      "schema_version": "1.0",
+      "kind": "application",
+      "app": "mytask_mac",
+      "zone": "local",
+      "runtime": "none",
+      "release_source": "dimark57/mytask",
+      "release_channel": "stable",
+      "current_version": "v0.1.63",
+      "stack_path": "/srv/nas/stacks/utilites/mytask_mac",
+      "data_path": "~/Library/Application Support/mytask_mac",
+      "secret_path": "/srv/nas/secrets/mytask_mac.env",
+      "secret_mount": "/run/mytask_mac.env",
+      "required_secrets": [],
+      "generated_secrets": [],
+      "healthcheck": {
+        "url": "http://127.0.0.1:8091/api/health",
+        "timeout_seconds": 10,
+        "retries": 3
+      },
+      "cli": {
+        "name": "mytask_mac",
+        "commands": ["--version", "--help"]
+      },
+      "mac_runtime": {
+        "asset_pattern": "mytask-mac-{version}-source.zip",
+        "label": "com.mytask.mac",
+        "server": "https://mytask.digials.com",
+        "data_dir": "~/Library/Application Support/mytask_mac",
+        "port": 8091
       }
     },
     "myqa": {
