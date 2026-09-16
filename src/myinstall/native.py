@@ -12,6 +12,19 @@ from typing import Any
 from . import runtime
 
 
+class _GitHubRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def __init__(self, authorization: str | None) -> None:
+        super().__init__()
+        self.authorization = authorization
+
+    def redirect_request(self, req: urllib.request.Request, newurl: str, code: int, msg: str,
+                         headers: Any, fp: Any) -> urllib.request.Request | None:
+        redirected = super().redirect_request(req, newurl, code, msg, headers, fp)
+        if redirected is not None and self.authorization:
+            redirected.add_header("Authorization", self.authorization)
+        return redirected
+
+
 def _artifact(manifest: dict[str, Any]) -> tuple[str, str]:
     artifact = manifest.get("artifact")
     if not isinstance(artifact, dict):
@@ -41,7 +54,11 @@ def download(manifest: dict[str, Any]) -> Path:
                 ),
             },
         )
-        with urllib.request.urlopen(request, timeout=600) as response, path.open("wb") as stream:
+        token = os.environ.get("MYINSTALL_GITHUB_TOKEN")
+        opener = urllib.request.build_opener(
+            _GitHubRedirectHandler(f"Bearer {token}" if token else None)
+        )
+        with opener.open(request, timeout=600) as response, path.open("wb") as stream:
             shutil.copyfileobj(response, stream)
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         if digest != expected:
