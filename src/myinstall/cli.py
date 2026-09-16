@@ -12,7 +12,22 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from . import auth, catalog, __version__, discovery, github, manifest, native, paths, postgres, progress, runtime, secrets, service
+from . import (
+    auth,
+    catalog,
+    __version__,
+    discovery,
+    errors,
+    github,
+    manifest,
+    native,
+    paths,
+    postgres,
+    progress,
+    runtime,
+    secrets,
+    service,
+)
 
 MANUAL = """myinstall — host-side application installer
 
@@ -389,23 +404,31 @@ def resolve_release(data: dict[str, Any], version: str) -> dict[str, Any]:
 
 
 def do_upgrade(path: Path, data: dict[str, Any], image: str | None, version: str | None) -> int:
+    # Использует: errors.upgrade_failure() из errors.py для стабильного кода,
+    # русского этапа, причины и подсказки оператору.
     bar = progress.Progress("upgrade", 5)
     bar.step("validate release request")
     runtime_kind = str(data.get("runtime", "native"))
     if runtime_kind in {"native", "systemd", "launchd"} and not version:
-        return output({"ok": False, "error": "native upgrade requires --version"}, 1)
+        return output(errors.upgrade_failure("UPG-001"), 1)
     if runtime_kind in {"native", "systemd", "launchd"} and image:
-        return output({"ok": False, "error": "--image applies only to docker/mixed runtime"}, 1)
+        return output(errors.upgrade_failure("UPG-002"), 1)
     if runtime_kind in {"docker", "mixed"} and not image and not version:
-        return output({"ok": False, "error": "Docker upgrade requires --image or --version"}, 1)
+        return output(errors.upgrade_failure("UPG-003"), 1)
     if version:
-        data = resolve_release(data, version) if not image else data
+        try:
+            data = resolve_release(data, version) if not image else data
+        except (OSError, ValueError, github.GitHubAuthError) as exc:
+            return output(
+                errors.upgrade_failure("UPG-005", diagnostic=str(exc)),
+                1,
+            )
         if not image and data.get("runtime") in {"docker", "mixed"}:
             image = str(data["image"])
     if runtime_kind in {"native", "systemd", "launchd"}:
-        errors = manifest.validate_paths(data)
-        if errors:
-            return output({"ok": False, "error": "invalid manifest paths", "details": errors}, 1)
+        path_errors = manifest.validate_paths(data)
+        if path_errors:
+            return output({"ok": False, "error": "invalid manifest paths", "details": path_errors}, 1)
         with runtime.lock(Path(data["stack_path"])):
             bar.step("download and install artifact")
             previous = Path(str(data["install_path"])).read_bytes()
@@ -444,11 +467,14 @@ def do_upgrade(path: Path, data: dict[str, Any], image: str | None, version: str
     if runtime_kind not in {"docker", "mixed"}:
         return output({"ok": False, "error": "runtime does not support upgrade"}, 1)
     if not image or not manifest.immutable_image(image) or image.endswith(":latest"):
-        return output({"ok": False, "error": "Docker upgrade requires an immutable vX.Y.Z tag or digest"}, 1)
+        return output(errors.upgrade_failure("UPG-004"), 1)
     stack = Path(data["stack_path"])
     with runtime.lock(stack):
         bar.step("update application runtime")
-        compose = runtime.materialize(path, data)
+        try:
+            compose = runtime.materialize(path, data)
+        except (OSError, ValueError) as exc:
+            return output(errors.upgrade_failure("UPG-005", diagnostic=str(exc)), 1)
         before = compose.read_text(encoding="utf-8")
         backup = stack / ".myinstall.previous-compose"
         backup.write_text(before, encoding="utf-8")
@@ -456,25 +482,71 @@ def do_upgrade(path: Path, data: dict[str, Any], image: str | None, version: str
         compose_errors = runtime.validate_compose(compose, {**data, "image": image})
         if compose_errors:
             compose.write_text(before, encoding="utf-8")
-            return output({"ok": False, "error": "invalid Compose contract", "details": compose_errors}, 1)
+            return output(
+                errors.upgrade_failure(
+                    "UPG-006",
+                    details=compose_errors,
+                    rollback="previous compose restored",
+                    rollback_code="UPG-012",
+                ),
+                1,
+            )
         if not runtime.ensure_registry_login(image):
             compose.write_text(before, encoding="utf-8")
-            return output({"ok": False, "error": "private image registry login failed"}, 1)
-        if not runtime.compose(compose, ["pull"], timeout=600) or not runtime.compose(
-            compose, ["up", "-d"], timeout=300
-        ):
+            return output(
+                errors.upgrade_failure(
+                    "UPG-007",
+                    rollback="previous compose restored",
+                    rollback_code="UPG-012",
+                ),
+                1,
+            )
+        if not runtime.compose(compose, ["pull"], timeout=600):
             compose.write_text(before, encoding="utf-8")
-            return output({"ok": False, "error": "upgrade failed; previous compose restored"}, 1)
+            return output(
+                errors.upgrade_failure(
+                    "UPG-008",
+                    rollback="previous compose restored",
+                    rollback_code="UPG-012",
+                ),
+                1,
+            )
+        if not runtime.compose(compose, ["up", "-d"], timeout=300):
+            compose.write_text(before, encoding="utf-8")
+            restored = runtime.compose(compose, ["up", "-d"], timeout=300)
+            return output(
+                errors.upgrade_failure(
+                    "UPG-009" if restored else "UPG-013",
+                    rollback="previous compose restored" if restored else "previous compose restart failed",
+                    rollback_code="UPG-012" if restored else "UPG-013",
+                ),
+                1,
+            )
         ok, diagnostic = native.run_hook(data, "migration_command")
         if not ok:
             compose.write_text(before, encoding="utf-8")
-            runtime.compose(compose, ["up", "-d"], timeout=300)
-            return output({"ok": False, "error": "migration failed; previous compose restored", "diagnostic": diagnostic}, 1)
+            restored = runtime.compose(compose, ["up", "-d"], timeout=300)
+            return output(
+                errors.upgrade_failure(
+                    "UPG-010" if restored else "UPG-013",
+                    diagnostic=diagnostic,
+                    rollback="previous compose restored" if restored else "previous compose restart failed",
+                    rollback_code="UPG-012" if restored else "UPG-013",
+                ),
+                1,
+            )
         healthy = runtime.health(data)
         if not healthy:
             compose.write_text(before, encoding="utf-8")
-            runtime.compose(compose, ["up", "-d"], timeout=300)
-            return output({"ok": False, "error": "healthcheck failed; previous compose restored"}, 1)
+            restored = runtime.compose(compose, ["up", "-d"], timeout=300)
+            return output(
+                errors.upgrade_failure(
+                    "UPG-011" if restored else "UPG-013",
+                    rollback="previous compose restored" if restored else "previous compose restart failed",
+                    rollback_code="UPG-012" if restored else "UPG-013",
+                ),
+                1,
+            )
         if version:
             data["current_version"] = version
             data["image"] = image

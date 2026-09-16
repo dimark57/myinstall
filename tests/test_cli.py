@@ -177,3 +177,69 @@ def test_myqa_catalog_entry_declares_native_application_contract() -> None:
         "doctor",
         "update",
     }
+
+
+def _docker_upgrade_data(tmp_path: Path) -> tuple[Path, dict]:
+    stack = tmp_path / "stack"
+    stack.mkdir()
+    compose = stack / "docker-compose.yml"
+    compose.write_text(
+        "services:\n  app:\n    image: ghcr.io/example/mytask:v1.0.0\n",
+        encoding="utf-8",
+    )
+    return compose, {
+        "runtime": "docker",
+        "image": "ghcr.io/example/mytask:v1.0.0",
+        "stack_path": str(stack),
+        "secret_path": str(tmp_path / "secret.env"),
+        "secret_mount": "/run/mytask.env",
+        "data_path": str(tmp_path / "data"),
+        "healthcheck": {"url": "http://127.0.0.1:8080/health"},
+    }
+
+
+def test_docker_upgrade_reports_image_pull_stage_and_stable_code(tmp_path, capsys) -> None:
+    compose, data = _docker_upgrade_data(tmp_path)
+    with patch("myinstall.cli.runtime.materialize", return_value=compose), \
+        patch("myinstall.cli.runtime.validate_compose", return_value=[]), \
+        patch("myinstall.cli.runtime.ensure_registry_login", return_value=True), \
+        patch("myinstall.cli.runtime.compose", return_value=False):
+        assert cli.do_upgrade(tmp_path / "manifest.json", data, "ghcr.io/example/mytask:v1.0.1", None) == 1
+
+    result = json.loads(capsys.readouterr().out)
+    assert result["error_code"] == "UPG-008"
+    assert result["error_number"] == 8
+    assert result["stage"] == "Загрузка образа"
+    assert result["rollback"] == "previous compose restored"
+    assert result["rollback_code"] == "UPG-012"
+    assert "v1.0.0" in compose.read_text(encoding="utf-8")
+
+
+def test_docker_upgrade_reports_runtime_start_stage_separately(tmp_path, capsys) -> None:
+    compose, data = _docker_upgrade_data(tmp_path)
+    with patch("myinstall.cli.runtime.materialize", return_value=compose), \
+        patch("myinstall.cli.runtime.validate_compose", return_value=[]), \
+        patch("myinstall.cli.runtime.ensure_registry_login", return_value=True), \
+        patch("myinstall.cli.runtime.compose", side_effect=[True, False, True]):
+        assert cli.do_upgrade(tmp_path / "manifest.json", data, "ghcr.io/example/mytask:v1.0.1", None) == 1
+
+    result = json.loads(capsys.readouterr().out)
+    assert result["error_code"] == "UPG-009"
+    assert result["stage"] == "Запуск runtime"
+    assert result["rollback_code"] == "UPG-012"
+
+
+def test_docker_upgrade_reports_failed_rollback(tmp_path, capsys) -> None:
+    compose, data = _docker_upgrade_data(tmp_path)
+    with patch("myinstall.cli.runtime.materialize", return_value=compose), \
+        patch("myinstall.cli.runtime.validate_compose", return_value=[]), \
+        patch("myinstall.cli.runtime.ensure_registry_login", return_value=True), \
+        patch("myinstall.cli.runtime.compose", side_effect=[True, True, False]), \
+        patch("myinstall.cli.native.run_hook", return_value=(False, "migration exit 1")), \
+        patch("myinstall.cli.runtime.health", return_value=True):
+        assert cli.do_upgrade(tmp_path / "manifest.json", data, "ghcr.io/example/mytask:v1.0.1", None) == 1
+
+    result = json.loads(capsys.readouterr().out)
+    assert result["error_code"] == "UPG-013"
+    assert result["stage"] == "Rollback"
+    assert result["rollback"] == "previous compose restart failed"

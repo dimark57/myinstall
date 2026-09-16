@@ -51,6 +51,13 @@ Interactive install, upgrade, and remove commands render progress on stderr;
 JSON output remains on stdout. Progress is disabled automatically when stderr
 is not a terminal or when `MYINSTALL_NO_PROGRESS=1` is set.
 
+Upgrade failures include stable `error_code`/`reason` fields, a numbered
+Russian `stage`, human-readable `message`, actionable `hint`, and
+`retryable`. Automation must branch on the code rather than parse message
+text. Docker upgrades distinguish image pull, runtime start, migration,
+healthcheck, and rollback failures; see
+[docs/UPGRADE_ERROR_CODES.md](docs/UPGRADE_ERROR_CODES.md).
+
 `myinstall APP` is the idempotent operator entrypoint: it discovers the
 application manifest locally or from the public catalog, installs when the
 runtime is absent, and upgrades to the latest release when the runtime is

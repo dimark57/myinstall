@@ -11,6 +11,7 @@ Latest release: `v0.3.16`
 - Install contract: [docs/INTEGRATION.md](docs/INTEGRATION.md)
 - GitHub application release contract: [docs/GITHUB_APPLICATION_RELEASE_CONTRACT.md](docs/GITHUB_APPLICATION_RELEASE_CONTRACT.md)
 - Application CLI contract: [docs/APPLICATION_CLI_CONTRACT.md](docs/APPLICATION_CLI_CONTRACT.md)
+- Upgrade error catalog: [docs/UPGRADE_ERROR_CODES.md](docs/UPGRADE_ERROR_CODES.md)
 - Platform matrix: [PLATFORMS.md](PLATFORMS.md)
 - API contract: [API.md](API.md)
 - Releases: https://github.com/dimark57/myinstall/releases
@@ -160,6 +161,8 @@ need Docker.
 - `docs/NAS_APPLICATION_MIGRATION_STATUS.md` — consumer cutover inventory;
 - `docs/SHARED_POSTGRES_MIGRATION.md` — explicit legacy-instance migration
   runbook;
+- `docs/UPGRADE_ERROR_CODES.md` — stable numbered upgrade stages, error codes,
+  operator hints, and rollback diagnostics;
 - `.github/workflows/` — test and immutable release automation;
 - `tests/` — deterministic, no-Docker smoke tests.
 
