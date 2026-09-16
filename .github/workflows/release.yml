@@ -24,6 +24,7 @@ jobs:
           mkdir -p dist
           for platform in linux-amd64 linux-arm64 darwin-amd64 darwin-arm64; do
             python scripts/build_artifact.py \
+              --version "${GITHUB_REF_NAME}" \
               --output "dist/myinstall-${GITHUB_REF_NAME}-${platform}"
           done
           (cd dist && sha256sum myinstall-* > SHA256SUMS)
