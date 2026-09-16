@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["schema_version", "app", "zone", "image", "stack_path", "data_path", "secret_path", "secret_mount", "required_secrets", "healthcheck"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "app": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+    "zone": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+    "image": {"type": "string"},
+    "stack_path": {"type": "string"},
+    "data_path": {"type": "string"},
+    "secret_path": {"type": "string"},
+    "secret_mount": {"type": "string"},
+    "compose_source": {"type": "string"},
+    "required_secrets": {"type": "array", "items": {"type": "string"}},
+    "generated_secrets": {"type": "array", "items": {"type": "object", "required": ["name", "length"]}},
+    "healthcheck": {"type": "object", "required": ["url"]},
+    "postgres": {
+      "type": "object",
+      "properties": {
+        "mode": {"enum": ["shared", "private"]},
+        "cluster": {"type": "string"},
+        "admin_compose_path": {"type": "string"},
+        "service": {"type": "string"},
+        "role": {"type": "string"},
+        "database": {"type": "string"},
+        "role_password_key": {"type": "string"},
+        "database_url_key": {"type": "string"},
+        "admin_password_key": {"type": "string"}
+      }
+    }
+  },
+  "additionalProperties": true
+}

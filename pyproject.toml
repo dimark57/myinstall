@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "myinstall"
+version = "0.1.0"
+description = "Shared runtime installer and secret lifecycle manager"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+myinstall = "myinstall.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
