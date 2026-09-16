@@ -27,6 +27,7 @@ myinstall rollback --manifest PATH --confirm
 myinstall remove --manifest PATH --confirm
 myinstall apps upgrade --root PATH --confirm
 myinstall app install --manifest-url HTTPS_URL --confirm
+myinstall APP
 myinstall secret ensure --manifest PATH
 myinstall secret rotate --manifest PATH --name database --confirm
 myinstall secret remove --manifest PATH --name KEY --confirm
@@ -34,6 +35,12 @@ myinstall secret remove --manifest PATH --name KEY --confirm
 
 All mutating operations acquire the per-application lock. Secret values and
 connection strings are never present in JSON output or command arguments.
+
+`myinstall APP` is the idempotent operator entrypoint: it discovers the
+application manifest, installs when the runtime is absent, and upgrades to the
+latest release when the runtime is already installed. `sudo myinstall APP`
+uses the same behavior with privileges supplied by the operator; myinstall
+does not alter sudoers or acquire privileges implicitly.
 
 ## Ownership
 

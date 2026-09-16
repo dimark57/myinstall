@@ -75,9 +75,16 @@ myinstall rollback --manifest deploy/bootstrap/manifest.json --confirm
 myinstall doctor --manifest deploy/bootstrap/manifest.json
 myinstall secret rotate --manifest deploy/bootstrap/manifest.json --name database --confirm
 myinstall remove --manifest deploy/bootstrap/manifest.json --confirm
+myinstall mytask
 myinstall apps check --root /srv/nas/stacks
 myinstall apps upgrade --root /srv/nas/stacks --confirm
 ```
+
+`myinstall <app>` finds the application's manifest in the canonical NAS roots.
+It installs an absent application and upgrades an installed application to the
+latest release. Use `sudo myinstall <app>` only when the operator has
+intentionally prepared the target with elevated privileges; the command does
+not grant or manage sudo permissions itself.
 
 The application bootstrap downloads a pinned `myinstall` release bundle and
 verifies its SHA-256. Target prerequisites depend on the manifest runtime:

@@ -357,6 +357,42 @@ def roots_from_args(values: list[Path] | None) -> list[Path] | None:
     return [path.expanduser().resolve() for path in values] if values else None
 
 
+def do_app_sync(app_id: str, version: str | None, image: str | None) -> int:
+    """Install an absent application or upgrade an existing one."""
+    # Uses find_app_manifest() from discovery.py and release lookup from github.py.
+    path = discovery.find_app_manifest(app_id)
+    data = manifest.load(path)
+    stack = Path(str(data["stack_path"]))
+    installed = (stack / "docker-compose.yml").is_file() or (
+        data.get("runtime") in {"native", "systemd", "launchd"}
+        and Path(str(data.get("install_path", ""))).is_file()
+    )
+    if not installed:
+        if image:
+            data["image"] = image
+        return do_install(path, data)
+
+    if image or version:
+        return do_upgrade(path, data, image, version)
+
+    source = data.get("release_source")
+    if not source:
+        return output(
+            {"ok": False, "error": "installed application has no release_source; use --image or --version"},
+            1,
+        )
+    release = github.latest(str(source), channel=str(data.get("release_channel", "stable")))
+    if release is None:
+        return output({"ok": False, "error": "no release found", "app": app_id}, 1)
+    current = data.get("current_version")
+    if current and discovery._version(release.tag) <= discovery._version(str(current)):
+        return output(
+            {"mode": "sync", "app": app_id, "state": "up_to_date", "version": current},
+            0,
+        )
+    return do_upgrade(path, data, None, release.tag)
+
+
 def do_apps_list(roots: list[Path] | None) -> int:
     return output(
         {
@@ -486,6 +522,10 @@ def build_parser() -> argparse.ArgumentParser:
     apps_upgrade = apps_sub.add_parser("upgrade")
     apps_upgrade.add_argument("--root", action="append", type=Path)
     apps_upgrade.add_argument("--confirm", action="store_true")
+    sync = sub.add_parser("sync")
+    sync.add_argument("app_id")
+    sync.add_argument("--version")
+    sync.add_argument("--image")
     app = sub.add_parser("app")
     app_sub = app.add_subparsers(dest="app_action", required=True)
     app_install = app_sub.add_parser("install")
@@ -495,7 +535,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
+    commands = {"plan", "doctor", "check", "install", "upgrade", "rollback", "remove", "apps", "app", "secret", "sync"}
+    if raw_argv and raw_argv[0] not in commands and not raw_argv[0].startswith("-"):
+        raw_argv.insert(0, "sync")
+    args = build_parser().parse_args(raw_argv)
     try:
         if args.command == "apps":
             roots = roots_from_args(args.root)
@@ -508,6 +552,8 @@ def main(argv: list[str] | None = None) -> int:
             return do_apps_upgrade(roots, args.confirm)
         if args.command == "app":
             return do_app_install(args.manifest_url, args.confirm)
+        if args.command == "sync":
+            return do_app_sync(args.app_id, args.version, args.image)
         path = args.manifest.expanduser().resolve()
         data = manifest.load(path)
         if (

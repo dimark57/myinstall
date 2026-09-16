@@ -7,7 +7,31 @@ from typing import Any
 from . import github, manifest
 
 
-DEFAULT_ROOTS = (Path("/srv/nas/stacks"), Path("/Volumes/Nas/stacks"))
+DEFAULT_ROOTS = (
+    Path("/srv/nas/Project"),
+    Path("/srv/nas/stacks"),
+    Path("/Volumes/Nas/Project"),
+    Path("/Volumes/Nas/stacks"),
+)
+
+
+def find_app_manifest(app_id: str, roots: list[Path] | None = None) -> Path:
+    """Find the unique manifest whose application id matches ``app_id``."""
+    normalized = app_id.casefold()
+    matches = []
+    for path in find_manifests(roots):
+        try:
+            data = manifest.load(path)
+        except (OSError, ValueError):
+            continue
+        if str(data.get("app", "")).casefold() == normalized:
+            matches.append(path)
+    if not matches:
+        raise ValueError(f"application manifest not found: {app_id}")
+    if len(matches) > 1:
+        paths = ", ".join(str(path) for path in matches)
+        raise ValueError(f"multiple manifests found for {app_id}: {paths}")
+    return matches[0]
 
 
 def find_manifests(roots: list[Path] | None = None) -> list[Path]:
