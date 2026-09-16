@@ -171,6 +171,85 @@ class CoreTest(unittest.TestCase):
         discovered = discovery.load_all([root])
         self.assertEqual([data["app"] for _, data in discovered], ["demo"])
 
+    def _shared_data(self) -> dict[str, object]:
+        data = manifest.load(self.manifest_path)
+        data["postgres"] = {
+            "mode": "shared",
+            "cluster_name": "infrastructure",
+            "infrastructure_compose_path": "/srv/nas/stacks/infrastructure/compose.yml",
+            "service_name": "postgres",
+            "network_name": "infrastructure",
+            "admin_user": "postgres",
+            "admin_database": "postgres",
+            "app_role": "demo",
+            "app_database": "demo",
+            "role_password_key": "DATABASE_PASSWORD",
+            "database_url_key": "DATABASE_URL",
+            "host": "postgres",
+        }
+        return data
+
+    def test_shared_manifest_contract_requires_safe_fields(self) -> None:
+        data = self._shared_data()
+        del data["postgres"]["network_name"]
+        self.assertTrue(postgres.validate_config(data))
+
+    def test_shared_cluster_absent_is_started_once(self) -> None:
+        data = self._shared_data()
+        values: dict[str, str] = {}
+        with patch("myinstall.postgres.cluster_exists", return_value=False), \
+             patch("myinstall.postgres.wait_healthy", return_value=True), \
+             patch("myinstall.postgres.tcp_ready", return_value=True), \
+             patch("myinstall.postgres.run_result", side_effect=[
+                 (True, ""), (True, ""), (True, ""), (True, "1"), (True, "")
+             ]), \
+             patch("myinstall.postgres.run", return_value=True) as run_mock:
+            ok, updated, _ = postgres.ensure_shared(data, values)
+        self.assertTrue(ok)
+        self.assertIn("DATABASE_PASSWORD", updated)
+        self.assertTrue(any("up" in call.args[0] and "-d" in call.args[0] for call in run_mock.call_args_list))
+
+    def test_shared_existing_cluster_does_not_start_or_change_password(self) -> None:
+        data = self._shared_data()
+        values = {
+            "DATABASE_PASSWORD": "existing",
+            "DATABASE_URL": "postgresql://demo:existing@postgres:5432/demo",
+        }
+        with patch("myinstall.postgres.cluster_exists", return_value=True), \
+             patch("myinstall.postgres.wait_healthy", return_value=True), \
+             patch("myinstall.postgres.tcp_ready", return_value=True), \
+             patch("myinstall.postgres.run_result", side_effect=[
+                 (True, ""), (True, "1"), (True, "1")
+             ]), \
+             patch("myinstall.postgres.run", return_value=True) as run_mock:
+            ok, updated, _ = postgres.ensure_shared(data, values)
+        self.assertTrue(ok)
+        self.assertEqual(updated["DATABASE_PASSWORD"], "existing")
+        self.assertFalse(any(" up " in f" {call.args[0]} " for call in run_mock.call_args_list))
+        self.assertFalse(any("CREATE ROLE" in str(call.kwargs.get("input_text", "")) for call in run_mock.call_args_list))
+
+    def test_app_compose_rejects_postgres_service(self) -> None:
+        source = self.project / "deploy" / "bootstrap" / "stack-compose.yml"
+        source.write_text("services:\n  postgres:\n    image: postgres:16\n", encoding="utf-8")
+        data = manifest.load(self.manifest_path)
+        data.update({"runtime": "docker", "image": "ghcr.io/example/demo:v1.2.3"})
+        errors = runtime.validate_compose(source, data)
+        self.assertIn("shared PostgreSQL", " ".join(errors))
+
+    def test_rotation_rolls_back_without_secret_output(self) -> None:
+        data = self._shared_data()
+        values = {
+            "DATABASE_URL": "postgresql://demo:old-password@postgres:5432/demo",
+        }
+        with patch("myinstall.postgres.run", side_effect=[True, False, True]) as run_mock:
+            ok, updated, state = postgres.rotate(
+                "/srv/nas/stacks/infrastructure/compose.yml", data, values
+            )
+        self.assertFalse(ok)
+        self.assertEqual(state, "rotation_failed")
+        self.assertEqual(updated, values)
+        self.assertNotIn("old-password", state)
+
 
 if __name__ == "__main__":
     unittest.main()

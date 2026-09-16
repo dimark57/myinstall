@@ -2,6 +2,13 @@
 
 All notable changes to `myinstall` are documented here.
 
+## [0.3.2] - 2026-09-16
+
+### Fixed
+
+- Include the complete API, integration documentation, and NAS example in the
+  audited release contract.
+
 ## [0.3.1] - 2026-09-16
 
 ### Fixed

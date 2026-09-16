@@ -24,6 +24,7 @@ file, data directory, image or running containers.
 myinstall install --manifest PATH --confirm
 myinstall upgrade --manifest PATH [--version VERSION|--image IMAGE] --confirm
 myinstall rollback --manifest PATH --confirm
+myinstall remove --manifest PATH --confirm
 myinstall apps upgrade --root PATH --confirm
 myinstall app install --manifest-url HTTPS_URL --confirm
 myinstall secret ensure --manifest PATH
@@ -37,17 +38,19 @@ connection strings are never present in JSON output or command arguments.
 ## Ownership
 
 Applications own their manifest, release artifact, health, and migration
-contract. This project owns host paths, secret lifecycle, PostgreSQL
-credentials, runtime lifecycle, locks, rollback and redacted diagnostics.
-Release artifacts are published through immutable GitHub Releases.
+contract. This project owns host paths, secret lifecycle, shared PostgreSQL
+infrastructure and app credentials, runtime lifecycle, locks, rollback and
+redacted diagnostics. Skills describe usage; CI/CD publishes immutable
+artifacts and images.
 
 When `release_source` is present, stack-level commands discover existing
 manifests and query GitHub Releases directly. They do not create a local
 application registry or require a separate update server.
 
 For a shared PostgreSQL cluster, the manifest declares `postgres.mode=shared`,
-the cluster adapter and the app-specific database/role. Install/upgrade/remove
-must never destroy the cluster or reuse another application's data directory.
+the infrastructure Compose contract and the app-specific database/role.
+Install/upgrade/remove must never destroy, stop, recreate, or `down` the
+cluster, and must never reuse another application's data directory.
 
 ## Runtime values
 

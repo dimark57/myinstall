@@ -28,8 +28,10 @@
   "migration_command": [],
   "postgres": {
     "mode": "shared",
+    "cluster": "nas-main",
+    "network_name": "nas-postgres",
     "admin_compose_path": "/srv/nas/stacks/infra/postgres/docker-compose.yml",
-    "service": "postgres",
+    "service_name": "postgres",
     "role": "example",
     "database": "example",
     "database_url_key": "DATABASE_URL",

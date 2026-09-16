@@ -6,7 +6,7 @@ Docker/Compose как один из runtime adapters устанавливаем�
 не требует Docker для запуска собственной CLI или для native/systemd
 проектов.
 
-Latest release: `v0.3.1`
+Latest release: `v0.3.2`
 
 - Install contract: [docs/INTEGRATION.md](docs/INTEGRATION.md)
 - Platform matrix: [PLATFORMS.md](PLATFORMS.md)
@@ -34,10 +34,33 @@ Canonical runtime layout:
 /srv/nas/secrets/<app>.env
 ```
 
-PostgreSQL is a shared infrastructure service. Each application gets its own
-database and role; an application manifest must never own or remove the shared
-cluster or its data volume. `myinstall` serializes role/password
-operations per application and uses the PostgreSQL cluster adapter.
+PostgreSQL is a shared infrastructure service. Each application declares only
+its database and LOGIN role:
+
+```json
+"postgres": {
+  "mode": "shared",
+  "cluster_name": "infrastructure",
+  "infrastructure_compose_path": "/srv/nas/stacks/infrastructure/postgres/compose.yml",
+  "service_name": "postgres",
+  "network_name": "infrastructure",
+  "admin_user": "postgres",
+  "admin_database": "postgres",
+  "app_role": "demo",
+  "app_database": "demo",
+  "role_password_key": "DATABASE_PASSWORD",
+  "database_url_key": "DATABASE_URL",
+  "host": "postgres"
+}
+```
+
+`myinstall` owns the shared infrastructure lifecycle and app role/database
+provisioning. The application owns only its declaration. Skills describe the
+usage contract, while CI/CD owns release and immutable image delivery.
+Application Compose must not contain a PostgreSQL service. Install, upgrade,
+rollback, and remove never delete, recreate, stop, or `down` the shared stack.
+PostgreSQL data migration is an explicit operator workflow; it is never an
+implicit `pg_dump`/`pg_restore`.
 
 ## Usage
 
@@ -49,6 +72,7 @@ myinstall upgrade --manifest deploy/bootstrap/manifest.json \
 myinstall rollback --manifest deploy/bootstrap/manifest.json --confirm
 myinstall doctor --manifest deploy/bootstrap/manifest.json
 myinstall secret rotate --manifest deploy/bootstrap/manifest.json --name database --confirm
+myinstall remove --manifest deploy/bootstrap/manifest.json --confirm
 myinstall apps check --root /srv/nas/stacks
 myinstall apps upgrade --root /srv/nas/stacks --confirm
 ```

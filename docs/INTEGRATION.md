@@ -11,8 +11,10 @@ deploy/bootstrap/app                 # native/systemd/launchd artifact
 
 The application owns its release artifact, health endpoint, migrations, and
 application-specific configuration. `myinstall` owns host paths, generated
-secrets, locking, runtime lifecycle, PostgreSQL credentials, redacted
-diagnostics, and rollback orchestration.
+secrets, locking, runtime lifecycle, shared PostgreSQL infrastructure and
+application credentials, redacted diagnostics, and rollback orchestration.
+The application owns only its database/role declaration; its Compose must not
+contain a PostgreSQL service.
 
 ## Install flow
 
@@ -30,7 +32,7 @@ application repository
 The bootstrap must pin both the `myinstall` release URL and its SHA-256:
 
 ```bash
-MYINSTALL_URL="https://github.com/dimark57/myinstall/releases/download/v0.3.1/myinstall-v0.3.1-linux-amd64"
+MYINSTALL_URL="https://github.com/dimark57/myinstall/releases/download/v0.3.2/myinstall-v0.3.2-linux-amd64"
 MYINSTALL_SHA256="..."
 ```
 
@@ -72,6 +74,12 @@ Docker applications replace `artifact` and service fields with `image` and
 `compose_source`. Docker image references must use a tag plus digest or a
 digest directly; mutable tags such as `latest` are rejected.
 
+For `postgres.mode=shared`, the stable fields are `cluster_name`,
+`infrastructure_compose_path`, `service_name`, `network_name`, `admin_user`,
+`admin_database`, `app_role`, `app_database`, `role_password_key`, and
+`database_url_key`. Infrastructure admin credentials stay in the
+infrastructure secret and are never copied to the application secret.
+
 ## Commands used by other applications
 
 ```bash
@@ -79,6 +87,7 @@ myinstall plan --manifest deploy/bootstrap/manifest.json
 myinstall install --manifest deploy/bootstrap/manifest.json --confirm
 myinstall upgrade --manifest deploy/bootstrap/manifest.json --version v1.2.4 --confirm
 myinstall rollback --manifest deploy/bootstrap/manifest.json --confirm
+myinstall remove --manifest deploy/bootstrap/manifest.json --confirm
 myinstall apps check --root /srv/nas/stacks
 myinstall apps upgrade --root /srv/nas/stacks --confirm
 myinstall doctor --manifest deploy/bootstrap/manifest.json
@@ -100,6 +109,9 @@ For stack-wide checks, `myinstall` discovers manifests directly from canonical
 stack paths and queries each `release_source` on GitHub. It does not create or
 require a local application registry or a separate update server.
 
-Database data is never removed by install, upgrade, or rollback. Destructive
-schema changes require an application-owned migration policy and backup
-strategy.
+Database data is never removed by install, upgrade, rollback, or remove.
+Destructive schema changes require an application-owned migration policy and
+backup strategy. `myinstall` performs readiness and connection checks only; it
+does not implicitly run `pg_dump`, `pg_restore`, or replace existing
+PostgreSQL containers. Shared PostgreSQL upgrades require a separate explicit
+infrastructure operation.
