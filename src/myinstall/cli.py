@@ -220,6 +220,7 @@ def report(manifest_path: Path, data: dict[str, Any]) -> dict[str, Any]:
         "schema_version": "1.0",
         "app": data["app"],
         "manifest": str(manifest_path),
+        "sudo_hint": f"sudo myinstall doctor --manifest {manifest_path}",
         "summary": {status: sum(item["status"] == status for item in checks) for status in ("pass", "warn", "fail")},
         "checks": checks,
         "runtime": runtime_kind,
@@ -798,6 +799,15 @@ def main(argv: list[str] | None = None) -> int:
                     1,
                 )
             return output({"mode": "secret rotate", "state": "completed"})
+    except PermissionError as exc:
+        return output(
+            {
+                "ok": False,
+                "error": f"{type(exc).__name__}: {exc}",
+                "hint": "rerun this command with sudo",
+            },
+            1,
+        )
     except (OSError, ValueError) as exc:
         return output({"ok": False, "error": f"{type(exc).__name__}: {exc}"}, 1)
 

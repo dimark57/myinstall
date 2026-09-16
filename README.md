@@ -71,23 +71,23 @@ implicit `pg_dump`/`pg_restore`.
 ## Usage
 
 ```bash
-myinstall plan --manifest deploy/bootstrap/manifest.json
-myinstall install --manifest deploy/bootstrap/manifest.json --confirm
-myinstall upgrade --manifest deploy/bootstrap/manifest.json \
+sudo myinstall plan --manifest deploy/bootstrap/manifest.json
+sudo myinstall install --manifest deploy/bootstrap/manifest.json --confirm
+sudo myinstall upgrade --manifest deploy/bootstrap/manifest.json \
   --version v1.2.3 --confirm
-myinstall rollback --manifest deploy/bootstrap/manifest.json --confirm
-myinstall doctor --manifest deploy/bootstrap/manifest.json
-myinstall secret rotate --manifest deploy/bootstrap/manifest.json --name database --confirm
-myinstall remove --manifest deploy/bootstrap/manifest.json --confirm
-myinstall mytask
+sudo myinstall rollback --manifest deploy/bootstrap/manifest.json --confirm
+sudo myinstall doctor --manifest deploy/bootstrap/manifest.json
+sudo myinstall secret rotate --manifest deploy/bootstrap/manifest.json --name database --confirm
+sudo myinstall remove --manifest deploy/bootstrap/manifest.json --confirm
+sudo myinstall mytask
 myinstall --help
-myinstall --plan
-myinstall --doctor
-myinstall --update
-myinstall mytask --update
+sudo myinstall --plan
+sudo myinstall --doctor
+sudo myinstall --update
+sudo myinstall mytask --update
 sudo myinstall auth setup
-myinstall apps check --root /srv/nas/stacks
-myinstall apps upgrade --root /srv/nas/stacks --confirm
+sudo myinstall apps check --root /srv/nas/stacks
+sudo myinstall apps upgrade --root /srv/nas/stacks --confirm
 ```
 
 `myinstall <app>` first searches the canonical NAS roots. If no local manifest
