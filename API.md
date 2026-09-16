@@ -21,7 +21,7 @@ file, data directory, image or running containers.
 ## Mutating
 
 ```text
-myinstall install --manifest PATH --confirm
+myinstall install --manifest PATH [--image IMAGE] --confirm
 myinstall upgrade --manifest PATH [--version VERSION|--image IMAGE] --confirm
 myinstall rollback --manifest PATH --confirm
 myinstall remove --manifest PATH --confirm
@@ -48,7 +48,9 @@ manifests and query GitHub Releases directly. They do not create a local
 application registry or require a separate update server.
 
 For a shared PostgreSQL cluster, the manifest declares `postgres.mode=shared`,
-the infrastructure Compose contract and the app-specific database/role.
+the infrastructure Compose contract, the `nas-infra` network, a separate
+admin secret, and the app-specific database/role. App Compose must not declare
+PostgreSQL services, `POSTGRES_*` variables, or `DATABASE_URL` values.
 Install/upgrade/remove must never destroy, stop, recreate, or `down` the
 cluster, and must never reuse another application's data directory.
 

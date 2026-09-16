@@ -31,13 +31,17 @@
     "cluster_name": "nas-main",
     "infrastructure_compose_path": "/srv/nas/stacks/infra/postgres/docker-compose.yml",
     "service_name": "postgres",
-    "network_name": "nas-postgres",
+    "network_name": "nas-infra",
     "admin_user": "postgres",
     "admin_database": "postgres",
     "app_role": "example",
     "app_database": "example",
     "database_url_key": "DATABASE_URL",
     "role_password_key": "DATABASE_PASSWORD",
-    "host": "127.0.0.1"
+    "admin_secret_path": "/srv/nas/secrets/postgres.env",
+    "admin_password_key": "POSTGRES_PASSWORD",
+    "host": "postgres",
+    "port": "5432",
+    "postgres_major": "16"
   }
 }

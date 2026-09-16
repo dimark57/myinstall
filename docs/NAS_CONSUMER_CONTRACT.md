@@ -20,6 +20,11 @@ directory. Production secrets are mounted from:
 /srv/nas/secrets/<app>.env
 ```
 
+Shared PostgreSQL applications must join the external `nas-infra` network.
+The canonical infrastructure Compose is provided at
+`templates/infrastructure/postgres/compose.yml`; its production copy is
+owned by the infrastructure/myinstall operator, not by an application stack.
+
 ## myTask status
 
 The repo-owned myTask manifest and Compose contract use app-only Compose,
@@ -32,15 +37,24 @@ myinstall upgrade --manifest ... --version vX.Y.Z --image IMAGE@sha256:... --con
 
 The legacy stack under `myNAS/stacks/apps/mythings` is not equivalent to this
 contract: it owns PostgreSQL, uses a local `.env`, and runs Compose directly.
-It must not be used for production after cutover.
+It must not be used for production after cutover. Use
+`docs/SHARED_POSTGRES_MIGRATION.md` for the explicit dump/restore cutover.
+
+The audited `myNAS` and `mytask` worktrees contain unrelated uncommitted WIP,
+including legacy stack edits and deletions. The cutover is intentionally
+blocked until the owner chooses the canonical stack and migration window;
+`myinstall` must not restore or delete those files automatically.
 
 ## myHealth status
 
-The myHealth repository was not available at the audited NAS paths. It is
-therefore `blocked`, not silently treated as compliant. Before deployment,
-myHealth must publish the same manifest/Compose contract and explicitly declare
-whether it uses the shared PostgreSQL cluster. `myinstall` must not infer
-ownership or invent its secret paths.
+The myHealth repository is available at `/Users/dmitrijstolarov/repos/myHealth`
+and now provides `deploy/bootstrap/manifest.json` plus an app-only Compose
+contract for the NAS test environment. Its test workflow invokes `myinstall`
+with the immutable GHCR digest. Its VPS production `deploy/deploy.sh` flow
+remains separate by design.
+
+myHealth does not declare PostgreSQL: it uses vault storage. `myinstall` must
+not infer database ownership or invent secret paths.
 
 ## New applications
 

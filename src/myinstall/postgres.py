@@ -67,6 +67,8 @@ def validate_config(manifest: dict[str, Any]) -> list[str]:
             "role_key": "role password key",
             "url_key": "database URL key",
             "host": "database host",
+            "admin_secret_path": "infrastructure admin secret path",
+            "admin_password_key": "infrastructure admin password key",
         }
         errors = [f"postgres.{key} is required ({label})" for key, label in required.items() if not config[key]]
         for key in ("role", "database"):
@@ -189,6 +191,14 @@ def ensure_shared(manifest: dict[str, Any], values: dict[str, str]) -> tuple[boo
     errors = validate_config(manifest)
     if errors:
         return False, values, "; ".join(errors)
+    admin_secret = Path(config["admin_secret_path"])
+    if not admin_secret.is_file():
+        return False, values, "infrastructure admin secret is missing"
+    if admin_secret.stat().st_mode & 0o077:
+        return False, values, "infrastructure admin secret must have mode 0600"
+    admin_values = secret_store.read(admin_secret)
+    if not admin_values.get(config["admin_password_key"]):
+        return False, values, "infrastructure admin password is missing"
     if config["admin_secret_path"] and Path(config["admin_secret_path"]).resolve() == Path(
         str(manifest["secret_path"])
     ).resolve():

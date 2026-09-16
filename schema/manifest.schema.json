@@ -77,6 +77,8 @@
             "network_name",
             "admin_user",
             "admin_database",
+            "admin_secret_path",
+            "admin_password_key",
             "app_role",
             "app_database",
             "role_password_key",

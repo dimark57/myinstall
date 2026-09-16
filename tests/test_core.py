@@ -173,14 +173,19 @@ class CoreTest(unittest.TestCase):
 
     def _shared_data(self) -> dict[str, object]:
         data = manifest.load(self.manifest_path)
+        admin_secret = self.root / "postgres.env"
+        admin_secret.write_text("POSTGRES_PASSWORD=admin-password\n", encoding="utf-8")
+        os.chmod(admin_secret, 0o600)
         data["postgres"] = {
             "mode": "shared",
             "cluster_name": "infrastructure",
             "infrastructure_compose_path": "/srv/nas/stacks/infrastructure/compose.yml",
             "service_name": "postgres",
-            "network_name": "infrastructure",
+            "network_name": "nas-infra",
             "admin_user": "postgres",
             "admin_database": "postgres",
+            "admin_secret_path": str(admin_secret),
+            "admin_password_key": "POSTGRES_PASSWORD",
             "app_role": "demo",
             "app_database": "demo",
             "role_password_key": "DATABASE_PASSWORD",
@@ -236,12 +241,32 @@ class CoreTest(unittest.TestCase):
         errors = runtime.validate_compose(source, data)
         self.assertIn("shared PostgreSQL", " ".join(errors))
 
+    def test_shared_compose_rejects_admin_environment_and_missing_network(self) -> None:
+        source = self.project / "deploy" / "bootstrap" / "stack-compose.yml"
+        source.write_text(
+            "services:\n"
+            "  app:\n"
+            "    image: ghcr.io/example/demo:v1.2.3\n"
+            "    environment:\n"
+            "      POSTGRES_PASSWORD: leaked\n",
+            encoding="utf-8",
+        )
+        data = self._shared_data()
+        data.update({"runtime": "docker", "image": "ghcr.io/example/demo:v1.2.3"})
+        errors = runtime.validate_compose(source, data)
+        self.assertIn("PostgreSQL admin environment", " ".join(errors))
+        self.assertIn("nas-infra", " ".join(errors))
+
     def test_rotation_rolls_back_without_secret_output(self) -> None:
         data = self._shared_data()
         values = {
             "DATABASE_URL": "postgresql://demo:old-password@postgres:5432/demo",
         }
-        with patch("myinstall.postgres.run", side_effect=[True, False, True]) as run_mock:
+        with patch("myinstall.postgres.run", side_effect=[True, False, True]) as run_mock, \
+            patch(
+                "myinstall.postgres.secret_store.read",
+                return_value={"POSTGRES_PASSWORD": "admin-password"},
+            ):
             ok, updated, state = postgres.rotate(
                 "/srv/nas/stacks/infrastructure/compose.yml", data, values
             )

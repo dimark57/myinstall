@@ -3,7 +3,7 @@ from __future__ import annotations
 import fcntl
 import os
 import re
-import re
+import shutil
 import subprocess
 import time
 import urllib.request
@@ -65,8 +65,24 @@ def validate_compose(compose_file: Path, manifest: dict[str, Any]) -> list[str]:
             errors.append("application Compose must not own shared PostgreSQL")
         if re.search(r"(?m)^\s*-\s*[^#\n]*postgres[^#\n]*data", text, re.IGNORECASE):
             errors.append("application Compose must not mount shared PostgreSQL data")
-        if re.search(r"(?m)^\\s{2,}(postgres|postgresql)\\s*:", text):
-            errors.append("application Compose must not declare a PostgreSQL service")
+        if re.search(r"(?im)^\s*(POSTGRES_[A-Z0-9_]+)\s*:", text):
+            errors.append("application Compose must not declare PostgreSQL admin environment")
+        if re.search(r"(?im)^\s*DATABASE_URL\s*[:=]", text):
+            errors.append("application Compose must read DATABASE_URL from the mounted secret")
+        if re.search(r"(?im)^\s*-\s*[^#\n]*(postgres(?:ql)?[_-].*volume|/var/lib/postgresql)", text):
+            errors.append("application Compose must not declare an app-specific PostgreSQL volume")
+        postgres = manifest.get("postgres")
+        if isinstance(postgres, dict) and postgres.get("mode") == "shared":
+            network = str(postgres.get("network_name", ""))
+            if not network:
+                errors.append("shared PostgreSQL network is not declared in manifest")
+            elif not re.search(
+                rf"(?m)^\s*name:\s*{re.escape(network)}\s*$",
+                text,
+            ):
+                errors.append(f"application Compose must join external network {network}")
+            if not re.search(r"(?m)^\s*external:\s*true\s*$", text):
+                errors.append("shared PostgreSQL network must be external")
     return errors
 
 

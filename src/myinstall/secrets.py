@@ -65,7 +65,7 @@ def ensure(manifest: dict[str, Any]) -> list[str]:
         length = max(16, min(256, int(item.get("length", 64))))
         values[name] = random_secrets.token_urlsafe(length)[:length]
         created.append(name)
-    if created:
+    if created or not path.exists():
         write(path, values)
     return created
 

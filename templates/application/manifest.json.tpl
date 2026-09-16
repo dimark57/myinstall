@@ -26,5 +26,23 @@
   "healthcheck": {"url": "{{HEALTH_URL}}", "timeout_seconds": 60},
   "migration_command": [],
   "install_command": [],
-  "upgrade_command": []
+  "upgrade_command": [],
+  "postgres": {
+    "mode": "shared",
+    "cluster_name": "nas-main",
+    "infrastructure_compose_path": "/srv/nas/stacks/infrastructure/postgres/compose.yml",
+    "service_name": "postgres",
+    "network_name": "nas-infra",
+    "admin_user": "postgres",
+    "admin_database": "postgres",
+    "admin_secret_path": "/srv/nas/secrets/postgres.env",
+    "admin_password_key": "POSTGRES_PASSWORD",
+    "app_role": "{{APP_ID}}",
+    "app_database": "{{APP_ID}}",
+    "role_password_key": "DATABASE_PASSWORD",
+    "database_url_key": "DATABASE_URL",
+    "host": "postgres",
+    "port": "5432",
+    "postgres_major": "16"
+  }
 }

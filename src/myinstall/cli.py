@@ -64,7 +64,7 @@ def report(manifest_path: Path, data: dict[str, Any]) -> dict[str, Any]:
             "id": "secrets.permissions",
             "status": (
                 "pass"
-                if secret.exists() and oct(secret.stat().st_mode & 0o777) in {"0o600", "0o640"}
+                if secret.exists() and oct(secret.stat().st_mode & 0o777) == "0o600"
                 else "warn"
             ),
             "actual": {
@@ -471,6 +471,8 @@ def build_parser() -> argparse.ArgumentParser:
         if name == "upgrade":
             command.add_argument("--image")
             command.add_argument("--version")
+        if name == "install":
+            command.add_argument("--image")
     secret = sub.add_parser("secret")
     secret.add_argument("action", choices=("ensure", "status", "rotate", "remove"))
     secret.add_argument("--manifest", required=True, type=Path)
@@ -523,6 +525,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "install":
             if not args.confirm:
                 return output({"ok": False, "error": "install requires --confirm"}, 1)
+            if args.image:
+                data["image"] = args.image
             return do_install(path, data)
         if args.command == "upgrade":
             if not args.confirm:

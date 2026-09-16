@@ -43,7 +43,7 @@ its database and LOGIN role:
   "cluster_name": "infrastructure",
   "infrastructure_compose_path": "/srv/nas/stacks/infrastructure/postgres/compose.yml",
   "service_name": "postgres",
-  "network_name": "infrastructure",
+  "network_name": "nas-infra",
   "admin_user": "postgres",
   "admin_database": "postgres",
   "app_role": "demo",
@@ -88,8 +88,12 @@ need Docker.
 - `schema/` — versioned application manifest schema;
 - `templates/application/` — files generated into application repositories;
   Docker Compose template is used only for `runtime=docker|mixed`;
+- `templates/infrastructure/postgres/compose.yml` — canonical shared
+  PostgreSQL 16 infrastructure stack;
 - `examples/` — complete application integration examples;
 - `docs/NAS_CONSUMER_CONTRACT.md` — NAS application ownership and cutover rules;
+- `docs/SHARED_POSTGRES_MIGRATION.md` — explicit legacy-instance migration
+  runbook;
 - `.github/workflows/` — test and immutable release automation;
 - `tests/` — deterministic, no-Docker smoke tests.
 

@@ -1,0 +1,26 @@
+services:
+  postgres:
+    # Policy: stay on the PostgreSQL 16 major; update the pinned minor only
+    # through an explicit infrastructure change, never through an app upgrade.
+    image: postgres:16.4
+    restart: unless-stopped
+    env_file:
+      - /srv/nas/secrets/postgres.env
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+    volumes:
+      - /srv/nas/data/postgres:/var/lib/postgresql/data
+    networks:
+      - nas_infra
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+networks:
+  nas_infra:
+    name: nas-infra
+    internal: true

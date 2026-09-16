@@ -37,7 +37,9 @@ MYINSTALL_SHA256="..."
 ```
 
 The bootstrap downloads the executable over HTTPS, verifies the checksum, and
-executes `install --manifest ... --confirm`.
+executes `install --manifest ... [--image IMAGE] --confirm`. CI may pass the
+fresh immutable digest on first install; the manifest remains the source of
+truth for the application contract.
 
 ## Manifest ownership
 
@@ -76,9 +78,12 @@ digest directly; mutable tags such as `latest` are rejected.
 
 For `postgres.mode=shared`, the stable fields are `cluster_name`,
 `infrastructure_compose_path`, `service_name`, `network_name`, `admin_user`,
-`admin_database`, `app_role`, `app_database`, `role_password_key`, and
-`database_url_key`. Infrastructure admin credentials stay in the
-infrastructure secret and are never copied to the application secret.
+`admin_database`, `admin_secret_path`, `admin_password_key`, `app_role`,
+`app_database`, `role_password_key`, and `database_url_key`. Infrastructure
+admin credentials stay in the infrastructure secret and are never copied to
+the application secret. Docker applications join the external `nas-infra`
+network; their Compose reads `DATABASE_URL` through the mounted app secret
+file.
 
 ## Commands used by other applications
 
