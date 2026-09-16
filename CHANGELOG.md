@@ -2,6 +2,13 @@
 
 All notable changes to `myinstall` are documented here.
 
+## [0.3.4] - 2026-09-16
+
+### Fixed
+
+- Normalize the shared PostgreSQL example to the canonical field names.
+- Limit doctor PostgreSQL readiness checks to shared clusters.
+
 ## [0.3.3] - 2026-09-16
 
 ### Fixed

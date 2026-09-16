@@ -36,7 +36,7 @@ def report(manifest_path: Path, data: dict[str, Any]) -> dict[str, Any]:
     postgres_config = data.get("postgres") or {}
     postgres_ready = (
         postgres.tcp_ready(data, values)
-        if isinstance(postgres_config, dict) and postgres_config.get("mode") in {"shared", "dedicated"}
+        if isinstance(postgres_config, dict) and postgres_config.get("mode") == "shared"
         else None
     )
     checks = [
@@ -119,8 +119,8 @@ def report(manifest_path: Path, data: dict[str, Any]) -> dict[str, Any]:
             checks.append(
                 {
                     "id": "postgres.app_compose",
-                    "status": "fail" if any("PostgreSQL service" in item for item in compose_errors) else "pass",
-                    "actual": [item for item in compose_errors if "PostgreSQL service" in item],
+                    "status": "fail" if any("shared PostgreSQL" in item for item in compose_errors) else "pass",
+                    "actual": [item for item in compose_errors if "shared PostgreSQL" in item],
                 }
             )
     return {
