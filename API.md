@@ -28,9 +28,9 @@ file, data directory, image or running containers.
 myinstall install --manifest PATH [--image IMAGE] --confirm
 myinstall upgrade --manifest PATH [--version VERSION|--image IMAGE] --confirm
 myinstall rollback --manifest PATH --confirm
-myinstall remove --manifest PATH --confirm
-myinstall remove --manifest PATH --confirm [--purge-data] [--purge-secrets]
-myinstall --remove [--purge-secrets]
+myinstall uninstall --manifest PATH --confirm
+myinstall uninstall --manifest PATH --confirm [--purge-data] [--purge-secrets]
+myinstall --uninstall [--purge-secrets]
 myinstall apps upgrade --root PATH --confirm
 myinstall app install --manifest-url HTTPS_URL --confirm
 myinstall APP
@@ -87,12 +87,12 @@ For a shared PostgreSQL cluster, the manifest declares `postgres.mode=shared`,
 the infrastructure Compose contract, the `nas-infra` network, a separate
 admin secret, and the app-specific database/role. App Compose must not declare
 PostgreSQL services, `POSTGRES_*` variables, or `DATABASE_URL` values.
-Install/upgrade/remove must never destroy, stop, recreate, or `down` the
+Install/upgrade/uninstall must never destroy, stop, recreate, or `down` the
 shared cluster, and must never reuse another application's data directory.
-Remove deletes only the application runtime by default. Data and secrets are
+Uninstall deletes only the application runtime by default. Data and secrets are
 preserved unless the operator explicitly passes `--purge-data` and/or
 `--purge-secrets`.
-`myinstall --remove` deletes the host utility itself, preserves installed
+`myinstall --uninstall` deletes the host utility itself, preserves installed
 applications, and asks interactively whether its saved GitHub token should be
 removed.
 

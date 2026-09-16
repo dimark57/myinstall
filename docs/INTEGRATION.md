@@ -123,7 +123,7 @@ myinstall plan --manifest deploy/bootstrap/manifest.json
 myinstall install --manifest deploy/bootstrap/manifest.json --confirm
 myinstall upgrade --manifest deploy/bootstrap/manifest.json --version v1.2.4 --confirm
 myinstall rollback --manifest deploy/bootstrap/manifest.json --confirm
-myinstall remove --manifest deploy/bootstrap/manifest.json --confirm
+myinstall uninstall --manifest deploy/bootstrap/manifest.json --confirm
 myinstall apps check --root /srv/nas/stacks
 myinstall apps upgrade --root /srv/nas/stacks --confirm
 myinstall doctor --manifest deploy/bootstrap/manifest.json

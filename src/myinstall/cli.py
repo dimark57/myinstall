@@ -19,11 +19,11 @@ MANUAL = """myinstall — host-side application installer
 Usage:
   myinstall <app>                 install or update an application
   myinstall <app> --update        update an application explicitly
-  myinstall --remove              remove the myinstall host utility
+  myinstall --uninstall           remove the myinstall host utility
   myinstall --update              update the host utility itself
   myinstall install --manifest PATH --confirm
-  myinstall remove --manifest PATH --confirm
-  myinstall remove --manifest PATH --confirm --purge-data
+  myinstall uninstall --manifest PATH --confirm
+  myinstall uninstall --manifest PATH --confirm --purge-data
   myinstall upgrade --manifest PATH --version VERSION --confirm
   myinstall doctor --manifest PATH
 
@@ -90,9 +90,9 @@ case "${{1:-}}" in
     shift
     exec myinstall {app} --update "$@"
     ;;
-  remove|--remove)
+  uninstall|--uninstall|remove|--remove)
     shift
-    exec myinstall remove --manifest {manifest_path} --confirm --interactive "$@"
+    exec myinstall uninstall --manifest {manifest_path} --confirm --interactive "$@"
     ;;
   *)
     printf 'usage: %s --help\\n' {app} >&2
@@ -171,7 +171,7 @@ def do_self_remove(*, purge_secrets: bool = False) -> int:
     target.unlink()
     return output(
         {
-            "mode": "self-remove",
+            "mode": "self-uninstall",
             "state": "removed",
             "target": str(target),
             "secret": "purged" if purge_secrets else "preserved",
@@ -618,7 +618,7 @@ def do_remove(
         bar.step("complete removal")
         return output(
             {
-                "mode": "remove",
+                "mode": "uninstall",
                 "runtime": runtime_kind,
                 "shared_postgres": "preserved",
                 "data": "purged" if purge_data else "preserved",
@@ -806,12 +806,21 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--plan", action="store_true", help="show a read-only plan for discovered apps")
     parser.add_argument("--doctor", action="store_true", help="diagnose discovered apps")
     sub = parser.add_subparsers(dest="command")
-    for name in ("plan", "doctor", "check", "install", "upgrade", "rollback", "remove"):
+    for name in (
+        "plan",
+        "doctor",
+        "check",
+        "install",
+        "upgrade",
+        "rollback",
+        "uninstall",
+        "remove",
+    ):
         command = sub.add_parser(name)
         command.add_argument("--manifest", required=True, type=Path)
-        if name in {"install", "upgrade", "rollback", "remove"}:
+        if name in {"install", "upgrade", "rollback", "uninstall", "remove"}:
             command.add_argument("--confirm", action="store_true")
-        if name == "remove":
+        if name in {"uninstall", "remove"}:
             command.add_argument(
                 "--purge-data",
                 action="store_true",
@@ -870,16 +879,18 @@ def main(argv: list[str] | None = None) -> int:
     raw_argv = list(sys.argv[1:] if argv is None else argv)
     if raw_argv == ["--update"]:
         return do_self_update()
-    if raw_argv and raw_argv[0] == "--remove":
+    if raw_argv and raw_argv[0] in {"--uninstall", "--remove"}:
         return do_self_remove(purge_secrets="--purge-secrets" in raw_argv[1:])
     if len(raw_argv) >= 2 and raw_argv[0] not in {
-        "plan", "doctor", "check", "install", "upgrade", "rollback", "remove",
+        "plan", "doctor", "check", "install", "upgrade", "rollback",
+        "uninstall", "remove",
         "apps", "app", "secret", "sync", "update",
         "auth",
     } and raw_argv[1] == "--update":
         raw_argv = ["update", raw_argv[0], *raw_argv[2:]]
     commands = {
-        "plan", "doctor", "check", "install", "upgrade", "rollback", "remove",
+        "plan", "doctor", "check", "install", "upgrade", "rollback",
+        "uninstall", "remove",
         "apps", "app", "secret", "sync", "update", "auth",
     }
     if raw_argv and raw_argv[0] not in commands and not raw_argv[0].startswith("-"):
@@ -940,7 +951,7 @@ def main(argv: list[str] | None = None) -> int:
             if not args.confirm:
                 return output({"ok": False, "error": "rollback requires --confirm"}, 1)
             return do_rollback(data)
-        if args.command == "remove":
+        if args.command in {"uninstall", "remove"}:
             if not args.confirm:
                 return output({"ok": False, "error": "remove requires --confirm"}, 1)
             return do_remove(

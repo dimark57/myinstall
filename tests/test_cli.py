@@ -99,8 +99,8 @@ def test_application_command_wrapper_delegates_update(tmp_path) -> None:
     assert target.stat().st_mode & 0o111
     wrapper = target.read_text(encoding="utf-8")
     assert "myinstall mytask --update" in wrapper
-    assert "myinstall remove --manifest" in wrapper
-    assert "shift\n    exec myinstall remove" in wrapper
+    assert "myinstall uninstall --manifest" in wrapper
+    assert "shift\n    exec myinstall uninstall" in wrapper
 
 
 def test_self_remove_deletes_only_myinstall_binary(tmp_path, capsys) -> None:
@@ -110,7 +110,7 @@ def test_self_remove_deletes_only_myinstall_binary(tmp_path, capsys) -> None:
     with patch.dict(os.environ, {"MYINSTALL_EXECUTABLE": str(target)}), patch(
         "myinstall.cli.ask_yes_no", return_value=False
     ):
-        assert cli.main(["--remove"]) == 0
+        assert cli.main(["--uninstall"]) == 0
     assert not target.exists()
     assert '"applications": "preserved"' in capsys.readouterr().out
 

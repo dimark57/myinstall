@@ -11,6 +11,15 @@ All notable changes to `myinstall` are documented here.
 - Add `myinstall auth status` to validate the configured token without exposing
   its value.
 
+## [0.3.15] - 2026-09-16
+
+### Changed
+
+- Make `--uninstall` the canonical host and application lifecycle command.
+- Keep `--remove` as a compatibility alias.
+- Standardize new-machine runtime paths under `stacks/utilites/<app>` and
+  host-local `data` and `secrets` roots.
+
 ## [0.3.14] - 2026-09-16
 
 ### Added

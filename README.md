@@ -74,11 +74,11 @@ and immutable image publication. The operator connects to the target server
 and runs `myinstall <app> --update`; runtime auto-deploy is an explicit
 project-level exception.
 Application Compose must not contain a PostgreSQL service. Install, upgrade,
-rollback, and remove never delete, recreate, stop, or `down` the shared stack.
+rollback, and uninstall never delete, recreate, stop, or `down` the shared stack.
 PostgreSQL data migration is an explicit operator workflow; it is never an
 implicit `pg_dump`/`pg_restore`.
 
-`remove` stops and deletes only the application runtime and generated wrapper.
+`uninstall` stops and deletes only the application runtime and generated wrapper.
 Application data and secrets are preserved by default. `--purge-data` and
 `--purge-secrets` explicitly delete those application-owned resources; shared
 PostgreSQL infrastructure remains untouched.
@@ -91,15 +91,14 @@ sudo myinstall install --manifest deploy/bootstrap/manifest.json --confirm
 sudo myinstall upgrade --manifest deploy/bootstrap/manifest.json \
   --version v1.2.3 --confirm
 sudo myinstall rollback --manifest deploy/bootstrap/manifest.json --confirm
-sudo myinstall remove --manifest deploy/bootstrap/manifest.json --confirm
-sudo myinstall remove --manifest deploy/bootstrap/manifest.json --confirm \
+sudo myinstall uninstall --manifest deploy/bootstrap/manifest.json --confirm
+sudo myinstall uninstall --manifest deploy/bootstrap/manifest.json --confirm \
   --purge-data --purge-secrets
 sudo myinstall doctor --manifest deploy/bootstrap/manifest.json
 sudo myinstall secret rotate --manifest deploy/bootstrap/manifest.json --name database --confirm
-sudo myinstall remove --manifest deploy/bootstrap/manifest.json --confirm
 sudo myinstall mytask
 sudo myinstall myqa
-sudo myinstall --remove
+sudo myinstall --uninstall
 myinstall --help
 sudo myinstall --plan
 sudo myinstall --doctor
@@ -119,7 +118,7 @@ application repository itself is not cloned. Use `sudo myinstall <app> --update`
 intentionally prepared the target with elevated privileges; the command does
 not grant or manage sudo permissions itself.
 
-`sudo myinstall --remove` removes only the host-side `myinstall` executable.
+`sudo myinstall --uninstall` removes only the host-side `myinstall` executable.
 Installed applications remain untouched. The command asks whether the saved
 myinstall GitHub token should also be removed; use `--purge-secrets` for a
 non-interactive explicit choice.
