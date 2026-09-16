@@ -164,6 +164,7 @@ need Docker.
 - `docs/UPGRADE_ERROR_CODES.md` — stable numbered upgrade stages, error codes,
   operator hints, and rollback diagnostics;
 - `.github/workflows/` — test and immutable release automation;
+- `AGENTS.md` — explicit CD recipe declaration for release automation;
 - `tests/` — deterministic, no-Docker smoke tests.
 
 No production secret values belong in this repository, manifests, images, or
