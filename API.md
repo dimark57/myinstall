@@ -32,6 +32,8 @@ myinstall apps upgrade --root PATH --confirm
 myinstall app install --manifest-url HTTPS_URL --confirm
 myinstall APP
 myinstall --help
+myinstall --plan
+myinstall --doctor
 myinstall --update
 myinstall APP --update
 myinstall secret ensure --manifest PATH

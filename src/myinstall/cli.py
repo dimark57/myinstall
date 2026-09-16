@@ -521,6 +521,17 @@ def do_apps_doctor(roots: list[Path] | None) -> int:
     )
 
 
+def do_global_plan() -> int:
+    """Return a read-only plan for all discoverable application manifests."""
+    return output(
+        {
+            "mode": "plan",
+            "will_write": False,
+            "apps": [report(path, data) for path, data in discovery.load_all(None)],
+        }
+    )
+
+
 def do_apps_upgrade(roots: list[Path] | None, confirm: bool) -> int:
     if not confirm:
         return output({"ok": False, "error": "apps upgrade requires --confirm"}, 1)
@@ -597,7 +608,9 @@ def do_app_install(manifest_url: str, confirm: bool) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="myinstall")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
-    sub = parser.add_subparsers(dest="command", required=True)
+    parser.add_argument("--plan", action="store_true", help="show a read-only plan for discovered apps")
+    parser.add_argument("--doctor", action="store_true", help="diagnose discovered apps")
+    sub = parser.add_subparsers(dest="command")
     for name in ("plan", "doctor", "check", "install", "upgrade", "rollback", "remove"):
         command = sub.add_parser(name)
         command.add_argument("--manifest", required=True, type=Path)
@@ -654,6 +667,12 @@ def main(argv: list[str] | None = None) -> int:
         raw_argv.insert(0, "sync")
     args = build_parser().parse_args(raw_argv)
     try:
+        if args.plan:
+            return do_global_plan()
+        if args.doctor and args.command is None:
+            return do_apps_doctor(None)
+        if args.command is None:
+            build_parser().error("a command or internal flag is required")
         if args.command == "apps":
             roots = roots_from_args(args.root)
             if args.apps_action == "list":

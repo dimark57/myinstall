@@ -81,6 +81,8 @@ myinstall secret rotate --manifest deploy/bootstrap/manifest.json --name databas
 myinstall remove --manifest deploy/bootstrap/manifest.json --confirm
 myinstall mytask
 myinstall --help
+myinstall --plan
+myinstall --doctor
 myinstall --update
 myinstall mytask --update
 myinstall apps check --root /srv/nas/stacks

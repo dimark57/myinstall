@@ -35,6 +35,18 @@ def test_self_update_flag_is_explicitly_handled(capsys) -> None:
     update.assert_called_once_with()
 
 
+def test_global_plan_is_a_read_only_internal_flag() -> None:
+    with patch("myinstall.cli.do_global_plan", return_value=0) as plan:
+        assert cli.main(["--plan"]) == 0
+    plan.assert_called_once_with()
+
+
+def test_global_doctor_is_a_read_only_internal_flag() -> None:
+    with patch("myinstall.cli.do_apps_doctor", return_value=0) as doctor:
+        assert cli.main(["--doctor"]) == 0
+    doctor.assert_called_once_with(None)
+
+
 def test_application_command_wrapper_delegates_update(tmp_path) -> None:
     manifest = tmp_path / "manifest.json"
     target = tmp_path / "bin" / "mytask"
