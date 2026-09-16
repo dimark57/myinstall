@@ -887,23 +887,14 @@ def do_helper_install(app_id: str, test: bool) -> int:
     path, data = resolve_app_manifest(app_id)
     config = data.get("helper")
     if not isinstance(config, dict):
-        catalog_entry = catalog.fetch(app_id)
-        catalog_helper = catalog_entry.get("helper") if catalog_entry else None
-        if not isinstance(catalog_helper, dict):
-            return output({"ok": False, "error": "application has no Mac helper contract"}, 1)
-        config = catalog_helper
-        data["helper"] = config
-        if not data.get("release_source") and catalog_entry.get("release_source"):
-            data["release_source"] = catalog_entry["release_source"]
-        persist_manifest(path, data)
+        return output({"ok": False, "error": "application has no Mac helper contract"}, 1)
     source = str(data.get("release_source", ""))
     release = github.latest(source)
     if release is None:
         return output({"ok": False, "error": "no stable helper release found"}, 1)
     selected = github.asset(release, str(config.get("asset_pattern", "")))
     checksum = github.asset_sha256(release, selected)
-    asset_url = str(selected.get("url") or selected["browser_download_url"])
-    temporary = native.download({"artifact": {"url": asset_url, "sha256": checksum}})
+    temporary = native.download({"artifact": {"url": selected["browser_download_url"], "sha256": checksum}})
     _, uid, home = service._launch_user()
     target = home / "Library" / "Application Support" / "myinstall" / app_id / "helper"
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -918,7 +909,32 @@ def do_helper_install(app_id: str, test: bool) -> int:
     ok, diagnostic = service.install_helper(data, target, server)
     if not ok:
         return output({"ok": False, "error": "helper LaunchAgent install failed", "diagnostic": diagnostic}, 1)
-    return output({"mode": "helper install", "app": app_id, "server": server, "target": str(target)})
+    menu_target = None
+    menu_config = data.get("menu_bar")
+    if isinstance(menu_config, dict):
+        menu_asset = github.asset(release, str(menu_config.get("asset_pattern", "")))
+        menu_checksum = github.asset_sha256(release, menu_asset)
+        menu_temporary = native.download(
+            {"artifact": {"url": menu_asset["browser_download_url"], "sha256": menu_checksum}}
+        )
+        menu_target = home / "Library" / "Application Support" / "myinstall" / app_id / "menubar"
+        os.replace(menu_temporary, menu_target)
+        menu_target.chmod(0o755)
+        if os.geteuid() == 0:
+            os.chown(menu_target, uid, os.stat(menu_target.parent).st_gid)
+        ok, diagnostic = service.install_menu_bar(data, menu_target)
+        if not ok:
+            return output(
+                {"ok": False, "error": "menu bar LaunchAgent install failed", "diagnostic": diagnostic},
+                1,
+            )
+    return output({
+        "mode": "helper install",
+        "app": app_id,
+        "server": server,
+        "target": str(target),
+        "menu_bar": str(menu_target) if menu_target else None,
+    })
 
 
 def do_helper_command(app_id: str, action: str) -> int:
@@ -933,32 +949,13 @@ def do_helper_command(app_id: str, action: str) -> int:
 def do_app_install_alias(app_id: str, *, helper: bool, docker: bool, test: bool) -> int:
     if helper and docker:
         return output({"ok": False, "error": "choose only one of --helper or --docker"}, 1)
-    if not helper and not docker:
-        if platform.system() != "Darwin":
-            docker = True
-        elif not sys.stdin.isatty() or not sys.stderr.isatty():
-            return output(
-                {
-                    "ok": False,
-                    "error": "install mode is required in non-interactive mode",
-                    "hint": "use --helper for local or --docker for server",
-                },
-                1,
-            )
-        else:
-            choice = input(
-                "Установить локальное приложение (helper) или серверное (Docker)? "
-                "[local/server] "
-            ).strip().lower()
-            if choice in {"local", "l", "helper", "h", ""}:
-                helper = True
-            elif choice in {"server", "s", "docker", "d"}:
-                docker = True
-            else:
-                return output({"ok": False, "error": "choose local or server"}, 1)
+    if not helper and not docker and platform.system() == "Darwin":
+        choice = input("Install Mac helper or Docker runtime? [helper/docker] ").strip().lower()
+        helper = choice in {"", "helper", "h"}
+        docker = choice in {"docker", "d"}
+        if not helper and not docker:
+            return output({"ok": False, "error": "choose helper or docker"}, 1)
     if helper:
-        if platform.system() != "Darwin":
-            return output({"ok": False, "error": "local helper is supported only on macOS"}, 1)
         return do_helper_install(app_id, test)
     return do_app_sync(app_id, None, None)
 

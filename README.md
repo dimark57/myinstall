@@ -6,7 +6,7 @@ Docker/Compose как один из runtime adapters устанавливаем�
 не требует Docker для запуска собственной CLI или для native/systemd
 проектов.
 
-Latest release: `v0.3.26`
+Latest release: `v0.3.20`
 
 - Install contract: [docs/INTEGRATION.md](docs/INTEGRATION.md)
 - GitHub application release contract: [docs/GITHUB_APPLICATION_RELEASE_CONTRACT.md](docs/GITHUB_APPLICATION_RELEASE_CONTRACT.md)
@@ -126,10 +126,9 @@ itself is not cloned. Use `sudo myinstall <app> --update` only when the operator
 intentionally prepared the target with elevated privileges; the command does
 not grant or manage sudo permissions itself.
 
-On macOS, `myinstall <app> --install` asks whether to install the local
-application (the GitHub Release helper) or the server application (Docker).
-`--helper` and `--docker` select a mode without prompting. The helper is
-installed as a per-user LaunchAgent;
+On macOS, `myinstall <app> --install` asks whether to install the Docker
+runtime or the native Mac helper. `--helper` and `--docker` select a mode
+without prompting. The helper is installed as a per-user LaunchAgent;
 `helper start|stop|status` controls it. `--test` selects the manifest's test
 server instead of production.
 

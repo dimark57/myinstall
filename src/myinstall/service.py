@@ -149,3 +149,22 @@ def helper_action(manifest: dict[str, Any], command: str) -> tuple[bool, str]:
     if command == "stop":
         return runtime.run_result(["launchctl", "bootout", target], timeout=30)
     return False, f"unknown helper action: {command}"
+
+
+def install_menu_bar(manifest: dict[str, Any], executable: Path) -> tuple[bool, str]:
+    config = manifest.get("menu_bar")
+    if not isinstance(config, dict):
+        return False, "manifest does not declare a menu bar app"
+    label = str(config.get("label", f"com.{manifest['app']}.menubar"))
+    username, uid, home = _launch_user()
+    plist = home / "Library" / "LaunchAgents" / f"{label}.plist"
+    plist.parent.mkdir(parents=True, exist_ok=True)
+    plist.write_bytes(plistlib.dumps({
+        "Label": label,
+        "ProgramArguments": [str(executable)],
+        "RunAtLoad": True,
+        "KeepAlive": True,
+        "ProcessType": "Interactive",
+    }))
+    os.chown(plist, uid, pwd.getpwnam(username).pw_gid)
+    return runtime.run_result(["launchctl", "bootstrap", f"gui/{uid}", str(plist)], timeout=30)

@@ -38,6 +38,15 @@
       },
       "additionalProperties": false
     },
+    "menu_bar": {
+      "type": "object",
+      "required": ["asset_pattern", "label"],
+      "properties": {
+        "asset_pattern": {"type": "string"},
+        "label": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+$"}
+      },
+      "additionalProperties": false
+    },
     "compose_source_url": {"type": "string", "format": "uri", "pattern": "^https://"},
     "stack_path": {"type": "string"},
     "data_path": {"type": "string"},

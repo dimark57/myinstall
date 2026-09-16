@@ -42,6 +42,10 @@
         "server": "https://mytask.digials.com",
         "test_server": "http://127.0.0.1:8090/mythings"
       },
+      "menu_bar": {
+        "asset_pattern": "mytask-menubar-{version}-darwin-arm64",
+        "label": "com.mytask.menubar"
+      },
       "postgres": {
         "mode": "shared",
         "cluster_name": "nas-main",
