@@ -93,6 +93,16 @@ def install_app_command(path: Path, data: dict[str, Any]) -> Path | None:
     manifest_path = shlex.quote(str(path))
     app = shlex.quote(str(data["app"]))
     version = shlex.quote(str(data.get("current_version", "dev")))
+    native_target = (
+        shlex.quote(str(data["install_path"]))
+        if data.get("runtime") in {"native", "systemd", "launchd"} and data.get("install_path")
+        else ""
+    )
+    native_command = (
+        f'exec {native_target} "$@"'
+        if native_target
+        else f"printf 'usage: %s --help\\n' {app} >&2; exit 2"
+    )
     script = f"""#!/bin/sh
 set -eu
 case "${{1:-}}" in
@@ -114,8 +124,7 @@ case "${{1:-}}" in
     exec myinstall uninstall --manifest {manifest_path} --confirm --interactive "$@"
     ;;
   *)
-    printf 'usage: %s --help\\n' {app} >&2
-    exit 2
+    {native_command}
     ;;
 esac
 """
@@ -746,6 +755,32 @@ def do_app_sync(app_id: str, version: str | None, image: str | None) -> int:
     if not installed:
         if image:
             data["image"] = image
+        if data.get("runtime") in {"native", "systemd", "launchd"} and not image:
+            source = str(data.get("release_source", ""))
+            pattern = str(data.get("release_asset_pattern", ""))
+            selected = github.latest_with_asset(
+                source,
+                pattern,
+                channel=str(data.get("release_channel", "stable")),
+            )
+            if selected is None:
+                return output(
+                    {
+                        "ok": False,
+                        "error": "no release asset found",
+                        "app": app_id,
+                        "asset_pattern": pattern,
+                    },
+                    1,
+                )
+            release, asset = selected
+            data["artifact"] = {
+                **dict(data.get("artifact", {})),
+                "url": asset["browser_download_url"],
+                "sha256": github.asset_sha256(release, asset),
+            }
+            data["current_version"] = release.tag
+            persist_manifest(path, data)
         return do_install(path, data)
 
     if image or version:
@@ -1061,6 +1096,9 @@ def main(argv: list[str] | None = None) -> int:
                 test="--test" in raw_argv[1:],
             )
         if "--uninstall" in raw_argv[1:]:
+            path, data = resolve_app_manifest(app_id)
+            if not isinstance(data.get("helper"), dict):
+                return do_remove(path, data)
             return do_helper_command(app_id, "uninstall")
         if len(raw_argv) >= 2 and raw_argv[1] == "helper":
             if len(raw_argv) < 3 or raw_argv[2] not in {"start", "stop", "status", "uninstall"}:

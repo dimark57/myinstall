@@ -148,7 +148,13 @@
     },
     {
       "if": {"properties": {"runtime": {"enum": ["native", "systemd", "launchd"]}}},
-      "then": {"required": ["artifact", "install_path"]}
+      "then": {
+        "required": ["install_path"],
+        "anyOf": [
+          {"required": ["artifact"]},
+          {"required": ["release_asset_pattern"]}
+        ]
+      }
     },
     {
       "if": {"required": ["release_source"]},
