@@ -950,6 +950,12 @@ def do_app_install_alias(app_id: str, *, helper: bool, docker: bool, test: bool)
     if helper and docker:
         return output({"ok": False, "error": "choose only one of --helper or --docker"}, 1)
     if not helper and not docker and platform.system() == "Darwin":
+        # Uses resolve_app_manifest() from this module and the mac_runtime
+        # declaration from the application catalog; local apps must not enter
+        # the server application's helper/docker selection.
+        _, app_data = resolve_app_manifest(app_id)
+        if isinstance(app_data.get("mac_runtime"), dict):
+            return do_app_sync(app_id, None, None)
         choice = input("Install Mac helper or Docker runtime? [helper/docker] ").strip().lower()
         helper = choice in {"", "helper", "h"}
         docker = choice in {"docker", "d"}

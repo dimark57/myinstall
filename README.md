@@ -6,7 +6,7 @@ Docker/Compose как один из runtime adapters устанавливаем�
 не требует Docker для запуска собственной CLI или для native/systemd
 проектов.
 
-Latest release: `v0.3.32`
+Latest release: `v0.3.33`
 
 - Install contract: [docs/INTEGRATION.md](docs/INTEGRATION.md)
 - GitHub application release contract: [docs/GITHUB_APPLICATION_RELEASE_CONTRACT.md](docs/GITHUB_APPLICATION_RELEASE_CONTRACT.md)
@@ -106,7 +106,7 @@ sudo myinstall --plan
 sudo myinstall --doctor
 sudo myinstall --update
 sudo myinstall mytask --update
-sudo myinstall mytask_mac
+sudo myinstall mytask_mac --install
 sudo myinstall auth setup
 sudo myinstall auth status
 sudo myinstall apps check --root /srv/nas/stacks

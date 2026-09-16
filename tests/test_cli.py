@@ -57,6 +57,15 @@ def test_application_install_helper_alias_delegates_selection() -> None:
     install.assert_called_once_with("mytask", helper=True, docker=False, test=True)
 
 
+def test_local_mac_runtime_does_not_prompt_for_helper_or_docker() -> None:
+    with patch("myinstall.cli.platform.system", return_value="Darwin"), patch(
+        "myinstall.cli.resolve_app_manifest",
+        return_value=(Path("/tmp/mytask_mac/manifest.json"), {"mac_runtime": {}}),
+    ), patch("myinstall.cli.do_app_sync", return_value=0) as sync:
+        assert cli.do_app_install_alias("mytask_mac", helper=False, docker=False, test=False) == 0
+    sync.assert_called_once_with("mytask_mac", None, None)
+
+
 def test_application_helper_lifecycle_alias_delegates() -> None:
     with patch("myinstall.cli.do_helper_command", return_value=0) as helper:
         assert cli.main(["mytask", "helper", "status"]) == 0
