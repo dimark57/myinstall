@@ -3,7 +3,7 @@ set -eu
 
 # The application release generator must replace these with an immutable
 # GitHub Release asset URL and its SHA-256 before publishing install.sh.
-: "${MYINSTALL_URL:?Set a pinned HTTPS myinstall bundle URL, e.g. https://github.com/dimark57/myinstall/releases/download/v0.3.2/myinstall-v0.3.2-linux-amd64}"
+: "${MYINSTALL_URL:?Set a pinned HTTPS myinstall bundle URL, e.g. https://github.com/dimark57/myinstall/releases/download/v0.3.3/myinstall-v0.3.3-linux-amd64}"
 : "${MYINSTALL_SHA256:?Set the SHA-256 from the release SHA256SUMS file}"
 
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/myinstall.XXXXXX")

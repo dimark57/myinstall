@@ -68,7 +68,17 @@ def validate_config(manifest: dict[str, Any]) -> list[str]:
             "url_key": "database URL key",
             "host": "database host",
         }
-        return [f"postgres.{key} is required ({label})" for key, label in required.items() if not config[key]]
+        errors = [f"postgres.{key} is required ({label})" for key, label in required.items() if not config[key]]
+        for key in ("role", "database"):
+            if config[key] and not config[key].replace("_", "").replace("-", "").isalnum():
+                errors.append(f"postgres.{key} is not a safe identifier")
+        if config["role"] == config["admin_user"]:
+            errors.append("application PostgreSQL role must differ from admin_user")
+        if config["role_key"] == config["admin_password_key"] and config["admin_password_key"]:
+            errors.append("application and infrastructure password keys must differ")
+        if manifest.get("runtime") in {"docker", "mixed"} and config["host"] in {"localhost", "127.0.0.1", "::1"}:
+            errors.append("Docker shared PostgreSQL host must not be loopback")
+        return errors
     return []
 
 
@@ -282,13 +292,17 @@ def doctor(manifest: dict[str, Any], values: dict[str, str]) -> list[dict[str, A
         return checks
     exists = cluster_exists(manifest)
     add("container", exists)
+    container_ok, container_output = run_result(
+        _compose(config, ["ps", "-q", config["service"]]), timeout=30
+    ) if exists else (False, "")
+    container_id = container_output.strip().splitlines()[-1] if container_ok and container_output.strip() else ""
     if exists:
         healthy = wait_healthy(manifest, retries=1)
         add("health", healthy)
         add("tcp", tcp_ready(manifest, values))
         image_ok, image = run_result(
-            ["docker", "inspect", "--format", "{{.Config.Image}}", config["service"]], timeout=30
-        )
+            ["docker", "inspect", "--format", "{{.Config.Image}}", container_id], timeout=30
+        ) if container_id else (False, "")
         add("image_major", image_ok and f"postgres:{config['expected_major']}" in image, {"major": config["expected_major"]})
     network_ok, _ = run_result(["docker", "network", "inspect", config["network"]], timeout=30)
     add("network", network_ok)
@@ -322,21 +336,25 @@ def doctor(manifest: dict[str, Any], values: dict[str, str]) -> list[dict[str, A
         config["data_path"] = data_path
     if data_path:
         volume_ok, volume_output = run_result(
-            ["docker", "inspect", "--format", "{{json .Mounts}}", config["service"]], timeout=30
-        )
+            ["docker", "inspect", "--format", "{{json .Mounts}}", container_id], timeout=30
+        ) if container_id else (False, "")
         add("data_volume", volume_ok and data_path in volume_output, {"expected": data_path})
     else:
         add("data_volume", False, "postgres.data_path is not declared", "warn")
-    _, duplicate_output = run_result(
-        ["docker", "ps", "-a", "--filter", f"label=com.docker.compose.project={config['cluster']}",
-         "--format", "{{.Names}}"], timeout=30
+    duplicate_ok, duplicate_output = run_result(
+        _compose(config, ["ps", "-q", config["service"]]), timeout=30
     )
     names = [line for line in duplicate_output.splitlines() if line.strip()]
-    add("duplicate_cluster", len(names) <= 1, {"containers": len(names)})
-    _, all_postgres = run_result(
-        ["docker", "ps", "-a", "--filter", "ancestor=postgres:16", "--format", "{{.Names}}"], timeout=30
-    )
-    add("duplicate_data_path", all_postgres.count(config["service"]) <= 1, {"containers": len(all_postgres.splitlines())})
+    add("duplicate_cluster", duplicate_ok and len(names) <= 1, {"containers": len(names)})
+    if data_path:
+        volume_ok, volume_output = run_result(
+            ["docker", "ps", "-a", "--filter", f"volume={data_path}", "--format", "{{.Names}}"],
+            timeout=30,
+        )
+        volume_containers = [line for line in volume_output.splitlines() if line.strip()]
+        add("duplicate_data_path", volume_ok and len(volume_containers) <= 1, {"containers": len(volume_containers)})
+    else:
+        add("duplicate_data_path", False, "postgres.data_path is not declared", "warn")
     add("app_compose_no_postgres", True, "checked by runtime adapter", "pass")
     return checks
 
@@ -363,24 +381,12 @@ def rotate(
     admin_user = normalized["admin_user"]
     admin_database = normalized["admin_database"]
     admin_compose = str(normalized["compose"] or compose_file)
-    command = [
-        "docker",
-        "compose",
-        "-f",
-        admin_compose,
-        "exec",
-        "-T",
-        service,
-        "psql",
-        "-v",
-        "ON_ERROR_STOP=1",
-        "-U",
-        admin_user,
-        "-d",
-        admin_database,
-        "-f",
-        "-",
-    ]
+    compose_config = {**normalized, "compose": admin_compose}
+    command = _compose(
+        compose_config,
+        ["exec", "-T", service, "psql", "-v", "ON_ERROR_STOP=1",
+         "-U", admin_user, "-d", admin_database, "-f", "-"],
+    )
     admin_values = values
     if normalized["admin_secret_path"]:
         admin_values = secret_store.read(Path(normalized["admin_secret_path"]))
@@ -394,43 +400,17 @@ def rotate(
     ):
         return False, values, "ALTER ROLE failed"
 
-    check = [
-        "docker",
-        "compose",
-        "-f",
-        admin_compose,
-        "exec",
-        "-T",
-        service,
-        "psql",
-        "-v",
-        "ON_ERROR_STOP=1",
-        "-U",
-        role,
-        "-d",
-        normalized["database"] or "postgres",
-        "-c",
-        "SELECT 1",
-    ]
+    check = _compose(
+        compose_config,
+        ["exec", "-T", service, "psql", "-v", "ON_ERROR_STOP=1",
+         "-U", role, "-d", normalized["database"] or "postgres", "-c", "SELECT 1"],
+    )
     if not run(check, timeout=60, env={"PGPASSWORD": new_password}):
-        rollback = [
-            "docker",
-            "compose",
-            "-f",
-            admin_compose,
-            "exec",
-            "-T",
-            service,
-            "psql",
-            "-v",
-            "ON_ERROR_STOP=1",
-            "-U",
-            admin_user,
-            "-d",
-            admin_database,
-            "-f",
-            "-",
-        ]
+        rollback = _compose(
+            compose_config,
+            ["exec", "-T", service, "psql", "-v", "ON_ERROR_STOP=1",
+             "-U", admin_user, "-d", admin_database, "-f", "-"],
+        )
         rolled_back = run(
             rollback,
             input_text=f"ALTER ROLE {identifier(role)} PASSWORD {literal(old_password)};",
@@ -517,12 +497,12 @@ def restore_password(
     password = parsed.password
     if not role or not password:
         return False
-    command = [
-        "docker", "compose", "-f", compose_file, "exec", "-T",
-        normalized["service"], "psql", "-v", "ON_ERROR_STOP=1",
-        "-U", normalized["admin_user"],
-        "-d", normalized["admin_database"], "-f", "-",
-    ]
+    compose_config = {**normalized, "compose": normalized["compose"] or compose_file}
+    command = _compose(
+        compose_config,
+        ["exec", "-T", normalized["service"], "psql", "-v", "ON_ERROR_STOP=1",
+         "-U", normalized["admin_user"], "-d", normalized["admin_database"], "-f", "-"],
+    )
     admin_values = values
     if normalized["admin_secret_path"]:
         admin_values = secret_store.read(Path(normalized["admin_secret_path"]))

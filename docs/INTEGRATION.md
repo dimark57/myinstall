@@ -32,7 +32,7 @@ application repository
 The bootstrap must pin both the `myinstall` release URL and its SHA-256:
 
 ```bash
-MYINSTALL_URL="https://github.com/dimark57/myinstall/releases/download/v0.3.2/myinstall-v0.3.2-linux-amd64"
+MYINSTALL_URL="https://github.com/dimark57/myinstall/releases/download/v0.3.3/myinstall-v0.3.3-linux-amd64"
 MYINSTALL_SHA256="..."
 ```
 

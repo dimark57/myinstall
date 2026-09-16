@@ -43,8 +43,8 @@ def run_result(
         return False, "command could not be started"
     diagnostic = (result.stderr or result.stdout or "").strip()
     # Docker/psql can echo connection strings or environment fragments.
-    diagnostic = re.sub(r"(?i)(postgres(?:ql)?://)[^\\s\"']+", r"\1[redacted]", diagnostic)
-    diagnostic = re.sub(r"(?i)(password|token|secret)([=:])[^\\s\"']+", r"\1\2[redacted]", diagnostic)
+    diagnostic = re.sub(r"(?i)(postgres(?:ql)?://)[^\s\"']+", r"\1[redacted]", diagnostic)
+    diagnostic = re.sub(r"(?i)(password|token|secret)([=:])[^\s\"']+", r"\1\2[redacted]", diagnostic)
     return result.returncode == 0, diagnostic[-2000:]
 
 

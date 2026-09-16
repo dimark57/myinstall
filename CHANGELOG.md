@@ -2,6 +2,15 @@
 
 All notable changes to `myinstall` are documented here.
 
+## [0.3.3] - 2026-09-16
+
+### Fixed
+
+- Preserve infrastructure Compose project selection during PostgreSQL rotation
+  and rollback.
+- Correct redaction of PostgreSQL URLs and secret-like diagnostics.
+- Normalize duplicate PostgreSQL manifest schema properties.
+
 ## [0.3.2] - 2026-09-16
 
 ### Fixed
