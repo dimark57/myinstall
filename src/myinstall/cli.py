@@ -887,7 +887,15 @@ def do_helper_install(app_id: str, test: bool) -> int:
     path, data = resolve_app_manifest(app_id)
     config = data.get("helper")
     if not isinstance(config, dict):
-        return output({"ok": False, "error": "application has no Mac helper contract"}, 1)
+        catalog_entry = catalog.fetch(app_id)
+        catalog_helper = catalog_entry.get("helper") if catalog_entry else None
+        if not isinstance(catalog_helper, dict):
+            return output({"ok": False, "error": "application has no Mac helper contract"}, 1)
+        config = catalog_helper
+        data["helper"] = config
+        if not data.get("release_source") and catalog_entry.get("release_source"):
+            data["release_source"] = catalog_entry["release_source"]
+        persist_manifest(path, data)
     source = str(data.get("release_source", ""))
     release = github.latest(source)
     if release is None:
