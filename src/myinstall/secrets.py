@@ -6,6 +6,15 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+KEY = __import__("re").compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _parse_value(value: str) -> str:
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+        return value[1:-1]
+    return value
+
 
 def read(path: Path) -> dict[str, str]:
     if not path.is_file():
@@ -16,7 +25,12 @@ def read(path: Path) -> dict[str, str]:
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, value = line.split("=", 1)
-        values[key.strip()] = value.strip().strip("'\"")
+        key = key.strip()
+        if not KEY.fullmatch(key):
+            raise ValueError(f"invalid secret key: {key}")
+        if key in values:
+            raise ValueError(f"duplicate secret key: {key}")
+        values[key] = _parse_value(value)
     return values
 
 
@@ -25,7 +39,12 @@ def write(path: Path, values: dict[str, str]) -> None:
     fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as stream:
-            stream.write("".join(f"{key}={value}\n" for key, value in sorted(values.items())))
+            for key, value in sorted(values.items()):
+                if not KEY.fullmatch(key):
+                    raise ValueError(f"invalid secret key: {key}")
+                if "\n" in value or "\r" in value:
+                    raise ValueError(f"secret value contains a newline: {key}")
+                stream.write(f"{key}={value}\n")
             stream.flush()
             os.fsync(stream.fileno())
         os.chmod(temporary, 0o600)
@@ -58,3 +77,14 @@ def status(manifest: dict[str, Any]) -> dict[str, Any]:
         "keys": sorted(read(path)),
         "mode": oct(path.stat().st_mode & 0o777) if path.exists() else None,
     }
+
+
+def validate_required(manifest: dict[str, Any]) -> list[str]:
+    path = Path(manifest["secret_path"])
+    values = read(path)
+    missing = [name for name in manifest["required_secrets"] if name not in values or not values[name]]
+    if missing:
+        return missing
+    if path.exists() and (path.stat().st_mode & 0o077):
+        raise ValueError("secret file must not be group/world writable or readable")
+    return []

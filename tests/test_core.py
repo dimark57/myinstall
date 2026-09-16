@@ -5,9 +5,10 @@ import os
 import stat
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
-from myinstall import manifest, secrets
+from myinstall import manifest, postgres, runtime, secrets
 
 
 class CoreTest(unittest.TestCase):
@@ -23,9 +24,14 @@ class CoreTest(unittest.TestCase):
             json.dumps(
                 {
                     "schema_version": "1.0",
+                    "runtime": "native",
                     "app": "demo",
                     "zone": "apps",
-                    "image": "ghcr.io/example/demo:v1",
+                    "artifact": {
+                        "url": "https://github.com/example/demo/releases/download/v1/demo",
+                        "sha256": "a" * 64,
+                    },
+                    "install_path": "/srv/nas/stacks/apps/demo/releases/current/demo",
                     "stack_path": "/srv/nas/stacks/apps/demo",
                     "data_path": "/srv/nas/data/demo",
                     "secret_path": str(self.secret),
@@ -55,6 +61,65 @@ class CoreTest(unittest.TestCase):
         status = secrets.status(manifest.load(self.manifest_path))
         self.assertEqual(status["keys"], ["DATABASE_URL"])
         self.assertNotIn("private", json.dumps(status))
+
+    def test_compose_renderer_materializes_runtime_contract(self) -> None:
+        source = self.project / "deploy" / "bootstrap" / "stack-compose.yml"
+        source.write_text(
+            "services:\n"
+            "  app:\n"
+            "    image: {{IMAGE}}\n"
+            "    volumes:\n"
+            "      - {{SECRET_PATH}}:{{SECRET_MOUNT}}:ro\n",
+            encoding="utf-8",
+        )
+        data = manifest.load(self.manifest_path)
+        data.update(
+            {
+                "runtime": "docker",
+                "image": "ghcr.io/example/demo@sha256:" + "a" * 64,
+                "stack_path": str(self.stack),
+            }
+        )
+        target = runtime.materialize(self.manifest_path, data)
+        rendered = target.read_text(encoding="utf-8")
+        self.assertIn("ghcr.io/example/demo@sha256:" + "a" * 64, rendered)
+        self.assertIn("/run/demo.env", rendered)
+        self.assertNotIn("{{", rendered)
+
+    def test_shared_postgres_uses_admin_compose_and_existing_password(self) -> None:
+        data = manifest.load(self.manifest_path)
+        data["postgres"] = {
+            "mode": "shared",
+            "admin_compose_path": "/srv/nas/stacks/services/postgres/docker-compose.yml",
+            "service": "postgres",
+            "role": "demo",
+            "database": "demo",
+            "database_url_key": "DATABASE_URL",
+            "role_password_key": "DATABASE_PASSWORD",
+            "host": "shared-postgres",
+        }
+        values = {"DATABASE_URL": "postgresql://demo:existing@shared-postgres:5432/demo"}
+        with patch("myinstall.postgres.run", return_value=True) as mocked:
+            ok, updated, state = postgres.provision(data, values)
+        self.assertTrue(ok)
+        self.assertEqual(state, "postgres provisioned")
+        self.assertEqual(updated["DATABASE_PASSWORD"], "existing")
+        command = mocked.call_args.args[0]
+        self.assertIn("/srv/nas/stacks/services/postgres/docker-compose.yml", command)
+        self.assertNotIn("/srv/nas/data", " ".join(command))
+
+    def test_manifest_rejects_unknown_runtime(self) -> None:
+        value = json.loads(self.manifest_path.read_text(encoding="utf-8"))
+        value["runtime"] = "unknown"
+        self.manifest_path.write_text(json.dumps(value), encoding="utf-8")
+        with self.assertRaises(ValueError):
+            manifest.load(self.manifest_path)
+
+    def test_secret_parser_rejects_duplicate_keys(self) -> None:
+        self.secret.parent.mkdir(parents=True)
+        self.secret.write_text("A=one\nA=two\n", encoding="utf-8")
+        with self.assertRaises(ValueError):
+            secrets.read(self.secret)
 
 
 if __name__ == "__main__":

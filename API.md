@@ -19,7 +19,8 @@ file, data directory, image or running containers.
 
 ```text
 myinstall install --manifest PATH --confirm
-myinstall upgrade --manifest PATH --image IMAGE --confirm
+myinstall upgrade --manifest PATH [--version VERSION|--image IMAGE] --confirm
+myinstall rollback --manifest PATH --confirm
 myinstall secret ensure --manifest PATH
 myinstall secret rotate --manifest PATH --name database --confirm
 myinstall secret remove --manifest PATH --name KEY --confirm
@@ -30,11 +31,19 @@ connection strings are never present in JSON output or command arguments.
 
 ## Ownership
 
-Applications own their manifest and health/migration contract. This project
-owns host paths, secret lifecycle, PostgreSQL credentials, Compose lifecycle,
-locks, rollback and redacted diagnostics. `cd` owns release/tag/image
-publication; `application-audit` owns read-only cross-skill verification.
+Applications own their manifest, release artifact, health, and migration
+contract. This project owns host paths, secret lifecycle, PostgreSQL
+credentials, runtime lifecycle, locks, rollback and redacted diagnostics.
+Release artifacts are published through immutable GitHub Releases.
 
 For a shared PostgreSQL cluster, the manifest declares `postgres.mode=shared`,
 the cluster adapter and the app-specific database/role. Install/upgrade/remove
 must never destroy the cluster or reuse another application's data directory.
+
+## Runtime values
+
+`runtime=native` installs an executable artifact without managing a service.
+`runtime=systemd` manages a Linux systemd unit. `runtime=launchd` manages a
+macOS launch agent. `runtime=docker` manages Compose and requires an immutable
+image. `runtime=mixed` may use both an image and a native sidecar. `runtime=none`
+only provisions host state and secrets.

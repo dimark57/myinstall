@@ -1,0 +1,22 @@
+# Changelog
+
+All notable changes to `myinstall` are documented here.
+
+## [0.2.0] - 2026-09-16
+
+### Added
+
+- Runtime declaration for native, systemd, Docker, mixed, and no-runtime applications.
+- Versioned release artifacts and checksum-based bootstrap installation.
+- JSON manifest validation and public integration contract.
+- Native and service-manager lifecycle adapters.
+
+### Changed
+
+- Docker is optional and is required only by Docker/mixed manifests.
+- The package version is sourced from `myinstall.__version__`.
+
+## Versioning
+
+Releases use Semantic Versioning. Tags and GitHub Releases are immutable:
+`vMAJOR.MINOR.PATCH`.

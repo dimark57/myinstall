@@ -1,15 +1,22 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
+
+try:
+    from jsonschema import Draft202012Validator, FormatChecker
+except ImportError:  # The release zipapp keeps a dependency-free fallback.
+    Draft202012Validator = None
+    FormatChecker = None
 
 
 REQUIRED = (
     "schema_version",
     "app",
     "zone",
-    "image",
+    "runtime",
     "stack_path",
     "data_path",
     "secret_path",
@@ -17,6 +24,11 @@ REQUIRED = (
     "required_secrets",
     "healthcheck",
 )
+RUNTIMES = frozenset({"native", "docker", "systemd", "launchd", "mixed", "none"})
+
+
+def immutable_image(value: str) -> bool:
+    return "@" in value or bool(re.search(r":v\d+\.\d+\.\d+$", value))
 
 
 def load(path: Path) -> dict[str, Any]:
@@ -31,6 +43,23 @@ def load(path: Path) -> dict[str, Any]:
         raise ValueError(f"manifest missing keys: {', '.join(missing)}")
     if value["schema_version"] != "1.0":
         raise ValueError("unsupported manifest schema_version")
+    schema_path = Path(__file__).resolve().parents[2] / "schema" / "manifest.schema.json"
+    if schema_path.is_file() and Draft202012Validator is not None:
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        errors = sorted(
+            Draft202012Validator(schema, format_checker=FormatChecker()).iter_errors(value),
+            key=lambda error: list(error.path),
+        )
+        if errors:
+            location = ".".join(str(part) for part in errors[0].path) or "manifest"
+            raise ValueError(f"invalid {location}: {errors[0].message}")
+    runtime = value.get("runtime", "native")
+    if not isinstance(runtime, str) or runtime not in RUNTIMES:
+        raise ValueError(f"unsupported runtime: {runtime}")
+    if runtime in {"native", "systemd", "launchd"}:
+        artifact = value.get("artifact")
+        if not isinstance(artifact, dict) or not str(artifact.get("url", "")).startswith("https://"):
+            raise ValueError("service runtime requires an HTTPS artifact")
     return value
 
 
@@ -43,11 +72,27 @@ def compose_source(path: Path, manifest: dict[str, Any]) -> Path:
 
 def validate_paths(manifest: dict[str, Any]) -> list[str]:
     errors: list[str] = []
+    roots = (Path("/srv/nas").resolve(), Path("/Volumes/Nas").resolve(), Path("/run").resolve())
     for key in ("stack_path", "data_path", "secret_path", "secret_mount"):
         value = str(manifest[key])
-        if not value.startswith(("/srv/nas/", "/Volumes/Nas/", "/run/")):
+        path = Path(value).expanduser()
+        try:
+            resolved = path.resolve(strict=False)
+        except OSError:
+            errors.append(f"{key} cannot be resolved")
+            continue
+        if not any(resolved == root or root in resolved.parents for root in roots):
             errors.append(f"{key} is outside canonical roots")
-    image = str(manifest["image"])
-    if ("@" not in image and ":" not in image) or image.endswith(":latest"):
-        errors.append("image must use an immutable tag or digest")
+    runtime = manifest.get("runtime", "native")
+    if runtime in {"docker", "mixed"}:
+        image = str(manifest.get("image", ""))
+        if not image or not immutable_image(image) or image.endswith(":latest"):
+            errors.append("docker/mixed runtime requires an immutable image tag or digest")
+    if runtime in {"native", "systemd", "launchd"}:
+        artifact = manifest.get("artifact", {})
+        if not isinstance(artifact, dict) or not artifact.get("url") or not artifact.get("sha256"):
+            errors.append("native/service runtime requires an HTTPS artifact and SHA-256")
+        install_path = manifest.get("install_path")
+        if not install_path:
+            errors.append("native/service runtime requires install_path")
     return errors
