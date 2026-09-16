@@ -12,7 +12,7 @@
   "image": "{{IMAGE}}",
   "cli": {
     "name": "{{APP_ID}}",
-    "commands": ["--version", "--help", "man", "doctor", "update"]
+    "commands": ["--version", "--help", "--man", "--doctor", "--update"]
   },
   "artifact": {
     "url": "{{ARTIFACT_URL}}",

@@ -7,7 +7,7 @@ manifest declares it under `cli`:
 {
   "cli": {
     "name": "mytask",
-    "commands": ["--version", "--help", "man", "doctor", "update"]
+    "commands": ["--version", "--help", "--man", "--doctor", "--update"]
   }
 }
 ```
@@ -18,12 +18,12 @@ manifest declares it under `cli`:
 |---|---|
 | `<app> --version` | Print the released application version and exit `0`; no network or mutation. |
 | `<app> --help` | Print concise usage and command help; exit `0`; no mutation. |
-| `<app> man` | Print the operator manual/reference; exit `0`; no mutation. |
-| `<app> doctor` | Read-only diagnostics for configuration, dependencies, storage and runtime connectivity. Exit `0` when healthy, non-zero when a required check fails. Never print secret values. |
-| `<app> update` | Delegate host update to `myinstall update <app>`; it never receives Docker socket or production secrets. |
+| `<app> --man` | Print the operator manual/reference; exit `0`; no mutation. |
+| `<app> --doctor` | Read-only diagnostics for configuration, dependencies, storage and runtime connectivity. Exit `0` when healthy, non-zero when a required check fails. Never print secret values. |
+| `<app> --update` | Delegate host update to `myinstall <app> --update`; it never receives Docker socket or production secrets. |
 
 `--help` must also be accepted for every subcommand that the application
-exposes. `--version`, `--help` and man output must be available before a production
+exposes. `--version`, `--help` and `--man` output must be available before a production
 secret or database is present.
 
 ## Naming standard
@@ -55,7 +55,8 @@ installation is always performed by the shared utility:
 
 ```bash
 myinstall <app>
-sudo myinstall <app>
+myinstall <app> --update
+sudo myinstall <app> --update
 ```
 
 The application must not ship a private installer, updater, registry or secret

@@ -29,8 +29,8 @@ Every installable application publishes a SemVer GitHub Release after its
 green test gate and immutable GHCR/artifact publication. The manifest
 `release_source` points to that repository. A GHCR-only tag is not a complete
 release because `myinstall <app>` discovers updates through GitHub Releases.
-The application CLI must expose `--version`, `--help`, `man`, `doctor`, and
-`update`; host installation and updates remain owned by `myinstall`.
+The application CLI must expose `--version`, `--help`, `--man`, `--doctor`, and
+`--update`; host installation and updates remain owned by `myinstall`.
 
 Shared PostgreSQL applications must join the external `nas-infra` network.
 The canonical infrastructure Compose is provided at

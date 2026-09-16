@@ -31,6 +31,9 @@ myinstall remove --manifest PATH --confirm
 myinstall apps upgrade --root PATH --confirm
 myinstall app install --manifest-url HTTPS_URL --confirm
 myinstall APP
+myinstall --help
+myinstall --update
+myinstall APP --update
 myinstall secret ensure --manifest PATH
 myinstall secret rotate --manifest PATH --name database --confirm
 myinstall secret remove --manifest PATH --name KEY --confirm
@@ -44,6 +47,10 @@ application manifest, installs when the runtime is absent, and upgrades to the
 latest release when the runtime is already installed. `sudo myinstall APP`
 uses the same behavior with privileges supplied by the operator; myinstall
 does not alter sudoers or acquire privileges implicitly.
+
+`--help` and `--update` are internal `myinstall` commands. `APP` is always the
+positional application selector, and `myinstall APP --update` updates that
+application. Positional tokens are never interpreted as internal commands.
 
 ## Ownership
 

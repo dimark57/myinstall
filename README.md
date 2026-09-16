@@ -23,8 +23,8 @@ Skills (`cd`, `nas-layout`, `project-bootstrap`, `application-audit`) испол
 ## Responsibilities
 
 ```text
-CI/CD:             test → build → publish immutable artifact/image
-myinstall:  validate → secrets → PostgreSQL → deploy → migrate → health
+CI/CD:             test → build → release (immutable artifact/image)
+myinstall:  validate → secrets → PostgreSQL → manual deploy → migrate → health
 application:      read runtime configuration
 ```
 
@@ -60,7 +60,9 @@ its database and LOGIN role:
 backups. `myinstall` provisions and rotates only application roles, databases,
 and credentials through the infrastructure contract. The application owns only
 its declaration. Skills describe the usage contract, while CI/CD owns release
-and immutable image delivery.
+and immutable image publication. The operator connects to the target server
+and runs `myinstall <app> --update`; runtime auto-deploy is an explicit
+project-level exception.
 Application Compose must not contain a PostgreSQL service. Install, upgrade,
 rollback, and remove never delete, recreate, stop, or `down` the shared stack.
 PostgreSQL data migration is an explicit operator workflow; it is never an
@@ -78,15 +80,23 @@ myinstall doctor --manifest deploy/bootstrap/manifest.json
 myinstall secret rotate --manifest deploy/bootstrap/manifest.json --name database --confirm
 myinstall remove --manifest deploy/bootstrap/manifest.json --confirm
 myinstall mytask
+myinstall --help
+myinstall --update
+myinstall mytask --update
 myinstall apps check --root /srv/nas/stacks
 myinstall apps upgrade --root /srv/nas/stacks --confirm
 ```
 
 `myinstall <app>` finds the application's manifest in the canonical NAS roots.
 It installs an absent application and upgrades an installed application to the
-latest release. Use `sudo myinstall <app>` only when the operator has
+latest release. Use `sudo myinstall <app> --update` only when the operator has
 intentionally prepared the target with elevated privileges; the command does
 not grant or manage sudo permissions itself.
+
+`--help` and `--update` are internal commands of `myinstall`; an application
+is always the positional token: `myinstall mytask`. Application updates use
+`myinstall mytask --update`. A positional token is never treated as an
+internal command.
 
 The application bootstrap downloads a pinned `myinstall` release bundle and
 verifies its SHA-256. Target prerequisites depend on the manifest runtime:

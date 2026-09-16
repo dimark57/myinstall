@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import patch
 
 from myinstall import cli
@@ -14,3 +15,51 @@ def test_sync_parser_accepts_explicit_release() -> None:
     assert args.command == "sync"
     assert args.app_id == "mytask"
     assert args.version == "v0.1.60"
+
+
+def test_update_alias_delegates_to_application_sync() -> None:
+    with patch("myinstall.cli.do_app_sync", return_value=0) as sync:
+        assert cli.main(["update", "mytask"]) == 0
+    sync.assert_called_once_with("mytask", None, None)
+
+
+def test_application_update_flag_delegates_to_application_sync() -> None:
+    with patch("myinstall.cli.do_app_sync", return_value=0) as sync:
+        assert cli.main(["mytask", "--update"]) == 0
+    sync.assert_called_once_with("mytask", None, None)
+
+
+def test_self_update_flag_is_explicitly_handled(capsys) -> None:
+    with patch("myinstall.cli.do_self_update", return_value=0) as update:
+        assert cli.main(["--update"]) == 0
+    update.assert_called_once_with()
+
+
+def test_application_command_wrapper_delegates_update(tmp_path) -> None:
+    manifest = tmp_path / "manifest.json"
+    target = tmp_path / "bin" / "mytask"
+    path = cli.install_app_command(
+        manifest,
+        {
+            "app": "mytask",
+            "current_version": "v1.2.3",
+            "cli": {"name": "mytask", "bin_path": str(target)},
+        },
+    )
+    assert path == target
+    assert target.stat().st_mode & 0o111
+    wrapper = target.read_text(encoding="utf-8")
+    assert "myinstall mytask --update" in wrapper
+
+
+def test_help_is_an_internal_flag(capsys) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main(["--help"])
+    assert exit_info.value.code == 0
+    assert "usage: myinstall" in capsys.readouterr().out
+
+
+def test_man_is_not_an_internal_command() -> None:
+    with patch("myinstall.cli.do_app_sync", return_value=0) as sync:
+        assert cli.main(["man"]) == 0
+    sync.assert_called_once_with("man", None, None)

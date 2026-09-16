@@ -3,7 +3,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
+import shlex
 import sys
 import tempfile
 import urllib.request
@@ -11,6 +13,20 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__, discovery, github, manifest, native, postgres, runtime, secrets, service
+
+MANUAL = """myinstall — host-side application installer
+
+Usage:
+  myinstall <app>                 install or update an application
+  myinstall <app> --update        update an application explicitly
+  myinstall --update              update the host utility itself
+  myinstall install --manifest PATH --confirm
+  myinstall upgrade --manifest PATH --version VERSION --confirm
+  myinstall doctor --manifest PATH
+
+Application lifecycle is owned by myinstall. Application-specific commands
+such as `mytask --update` belong to the application executable.
+"""
 
 
 def output(value: dict[str, Any], code: int = 0) -> int:
@@ -22,6 +38,83 @@ def persist_manifest(path: Path, data: dict[str, Any]) -> None:
     temporary = path.with_name(f".{path.name}.new")
     temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     os.replace(temporary, path)
+
+
+def install_app_command(path: Path, data: dict[str, Any]) -> Path | None:
+    """Install the generated host command for an application.
+
+    Uses the manifest ``cli.name`` contract and delegates lifecycle updates
+    back to ``myinstall <app> --update``. The application owns its CLI
+    implementation; this wrapper only exposes the operator boundary on PATH.
+    """
+    cli = data.get("cli")
+    if not isinstance(cli, dict) or not cli.get("name"):
+        return None
+    name = str(cli["name"])
+    if not re.fullmatch(r"[a-z][a-z0-9-]*", name):
+        raise ValueError("cli.name must be a lowercase kebab-case executable")
+    target = Path(str(cli.get("bin_path", f"/usr/local/bin/{name}"))).expanduser()
+    manifest_path = shlex.quote(str(path))
+    app = shlex.quote(str(data["app"]))
+    version = shlex.quote(str(data.get("current_version", "dev")))
+    script = f"""#!/bin/sh
+set -eu
+case "${{1:-}}" in
+  --version)
+    printf '%s %s\\n' {app} {version}
+    ;;
+  --help|-h|--man)
+    printf '%s --version\\n%s --help\\n%s --man\\n%s --doctor\\n%s --update\\n' {app} {app} {app} {app} {app}
+    ;;
+  --doctor)
+    exec myinstall doctor --manifest {manifest_path}
+    ;;
+  --update)
+    shift
+    exec myinstall {app} --update "$@"
+    ;;
+  *)
+    printf 'usage: %s --help\\n' {app} >&2
+    exit 2
+    ;;
+esac
+"""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(f".{target.name}.new")
+    temporary.write_text(script, encoding="utf-8")
+    temporary.chmod(0o755)
+    os.replace(temporary, target)
+    return target
+
+
+def do_self_update() -> int:
+    """Update the host utility from its immutable GitHub Release artifact."""
+    source = os.environ.get("MYINSTALL_RELEASE_SOURCE", "dimark57/myinstall")
+    release = github.latest(source)
+    if release is None:
+        return output({"ok": False, "error": "no myinstall release found"}, 1)
+    if discovery._version(release.tag) <= discovery._version(__version__):
+        return output({"mode": "self-update", "state": "up_to_date", "version": __version__})
+    selected = github.asset(release, "myinstall-{version}-{platform}")
+    checksum = github.asset_sha256(release, selected)
+    artifact = native.download(
+        {
+            "artifact": {
+                "url": selected["browser_download_url"],
+                "sha256": checksum,
+            }
+        }
+    )
+    target = Path(os.environ.get("MYINSTALL_EXECUTABLE", sys.argv[0])).resolve()
+    if not target.is_file() or not os.access(target, os.W_OK):
+        artifact.unlink(missing_ok=True)
+        return output({"ok": False, "error": f"myinstall executable is not writable: {target}"}, 1)
+    try:
+        os.replace(artifact, target)
+        target.chmod(0o755)
+    finally:
+        artifact.unlink(missing_ok=True)
+    return output({"mode": "self-update", "state": "updated", "version": release.tag})
 
 
 def report(manifest_path: Path, data: dict[str, Any]) -> dict[str, Any]:
@@ -166,8 +259,10 @@ def do_install(path: Path, data: dict[str, Any]) -> int:
             ok, diagnostic = native.run_hook(data, "migration_command")
             if not ok:
                 return output({"ok": False, "error": "migration failed", "diagnostic": diagnostic}, 1)
+            install_app_command(path, data)
             return output({"mode": "install", "runtime": runtime_kind, "path": str(installed), "secret_keys_created": created})
         if runtime_kind == "none":
+            install_app_command(path, data)
             return output({"mode": "install", "runtime": "none", "secret_keys_created": created})
         if runtime_kind not in {"docker", "mixed"}:
             return output(
@@ -188,6 +283,8 @@ def do_install(path: Path, data: dict[str, Any]) -> int:
         if not ok:
             return output({"ok": False, "error": "migration failed", "diagnostic": diagnostic}, 1)
         healthy = runtime.health(data)
+        if healthy:
+            install_app_command(path, data)
         result = {"mode": "install", "secret_keys_created": created, "health": healthy}
         return output(result, 0 if healthy else 1)
 
@@ -362,6 +459,7 @@ def do_app_sync(app_id: str, version: str | None, image: str | None) -> int:
     # Uses find_app_manifest() from discovery.py and release lookup from github.py.
     path = discovery.find_app_manifest(app_id)
     data = manifest.load(path)
+    install_app_command(path, data)
     stack = Path(str(data["stack_path"]))
     installed = (stack / "docker-compose.yml").is_file() or (
         data.get("runtime") in {"native", "systemd", "launchd"}
@@ -541,6 +639,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     raw_argv = list(sys.argv[1:] if argv is None else argv)
+    if raw_argv == ["--update"]:
+        return do_self_update()
+    if len(raw_argv) >= 2 and raw_argv[0] not in {
+        "plan", "doctor", "check", "install", "upgrade", "rollback", "remove",
+        "apps", "app", "secret", "sync", "update",
+    } and raw_argv[1] == "--update":
+        raw_argv = ["update", raw_argv[0], *raw_argv[2:]]
     commands = {
         "plan", "doctor", "check", "install", "upgrade", "rollback", "remove",
         "apps", "app", "secret", "sync", "update",

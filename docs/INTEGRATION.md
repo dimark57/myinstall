@@ -51,7 +51,7 @@ vMAJOR.MINOR.PATCH tag
   -> green tests
   -> immutable GHCR image or GitHub Release artifact + SHA256SUMS
   -> GitHub Release with the same tag
-  -> rollout
+  -> manual operator rollout
 ```
 
 `release_source` must identify that GitHub repository. A GHCR image tag
@@ -59,12 +59,14 @@ without a matching GitHub Release is not discoverable by `myinstall`.
 Operators use the same idempotent command for every application:
 
 ```bash
-myinstall <app>
-sudo myinstall <app>   # only when host privileges are intentionally required
+myinstall <app> --update
+sudo myinstall <app> --update   # only when host privileges are intentionally required
 ```
 
-The command installs an absent runtime and upgrades an installed runtime to
-the latest stable GitHub Release.
+The operator runs the command after connecting to the target server. It
+installs an absent runtime and upgrades an installed runtime to the latest
+stable GitHub Release. An automated scheduler is an explicit project-level
+auto-deploy exception, not the default release behavior.
 
 ## Manifest ownership
 
@@ -130,8 +132,9 @@ contract and avoid parsing human-readable stderr.
 ## Upgrade flow
 
 The release publisher creates a new immutable application artifact or image.
-An operator or scheduler updates the manifest release reference and invokes
-`upgrade`. `myinstall` stages the new version, runs migrations according to
+The operator updates the manifest release reference and invokes
+`myinstall <app> --update`. An explicitly configured scheduler may perform
+the same action for an auto-deploy project. `myinstall` stages the new version, runs migrations according to
 the manifest policy, restarts the service/runtime, and verifies health. A
 failed verification triggers a checked rollback to the previous generation.
 
