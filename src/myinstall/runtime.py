@@ -115,10 +115,10 @@ def lock(stack_path: Path) -> Iterator[None]:
 def ensure_registry_login(image: str) -> bool:
     """Login to a private OCI registry without exposing the token."""
     registry = image.split("/", 1)[0] if "/" in image else ""
-    token = os.environ.get("MYINSTALL_GITHUB_TOKEN")
+    token = os.environ.get("MYINSTALL_GHCR_TOKEN")
     if registry != "ghcr.io" or not token:
         return True
-    username = os.environ.get("MYINSTALL_GITHUB_USER", "x-access-token")
+    username = os.environ.get("MYINSTALL_GHCR_USER", "x-access-token")
     try:
         result = subprocess.run(
             ["docker", "login", registry, "--username", username, "--password-stdin"],

@@ -61,15 +61,17 @@ healthcheck, and rollback failures; see
 `myinstall APP` is the idempotent operator entrypoint: it discovers the
 application manifest locally or from the public catalog, installs when the
 runtime is absent, and upgrades to the latest release when the runtime is
-already installed. Private release sources use `MYINSTALL_GITHUB_TOKEN`.
+already installed. Private release sources use `MYINSTALL_GITHUB_TOKEN`, and
+private GHCR images use `MYINSTALL_GHCR_TOKEN`.
 The public catalog contains only non-secret metadata; private GitHub release
 and Compose requests use that token.
-`myinstall auth setup` validates a hidden token prompt and persists it with
-mode `0600` in `/srv/nas/secrets/myinstall.env`.
-`myinstall auth status` validates the configured token without printing it.
+`myinstall auth setup` validates two hidden token prompts—a Fine-grained token
+for private GitHub repositories and a Classic PAT with `read:packages` for
+GHCR—and persists them with mode `0600` in `/srv/nas/secrets/myinstall.env`.
+`myinstall auth status` validates both configured tokens without printing them.
 GitHub `401` responses are reported as an expired, revoked, or invalid token
 and include the recovery command `sudo myinstall auth setup` plus a link to
-create a replacement Fine-grained token.
+create a replacement source or GHCR token.
 `sudo myinstall APP`
 uses the same behavior with privileges supplied by the operator; myinstall
 does not alter sudoers or acquire privileges implicitly.

@@ -87,6 +87,22 @@ class CoreTest(unittest.TestCase):
         self.assertIn("/run/demo.env", rendered)
         self.assertNotIn("{{", rendered)
 
+    def test_registry_login_uses_dedicated_ghcr_token(self) -> None:
+        completed = type("Completed", (), {"returncode": 0, "stderr": "", "stdout": ""})()
+        with patch.dict(
+            os.environ,
+            {
+                "MYINSTALL_GITHUB_TOKEN": "source-token",
+                "MYINSTALL_GHCR_TOKEN": "ghcr-token",
+                "MYINSTALL_GHCR_USER": "ghcr-user",
+            },
+            clear=True,
+        ), patch("myinstall.runtime.subprocess.run", return_value=completed) as run_mock:
+            self.assertTrue(runtime.ensure_registry_login("ghcr.io/example/demo:v1.2.3"))
+
+        self.assertEqual(run_mock.call_args.kwargs["input"], "ghcr-token\n")
+        self.assertEqual(run_mock.call_args.args[0][4], "ghcr-user")
+
     def test_docker_runtime_requires_immutable_release_reference(self) -> None:
         data = manifest.load(self.manifest_path)
         data.update({"runtime": "docker", "image": "ghcr.io/example/demo:v1.2.3"})

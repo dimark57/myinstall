@@ -114,8 +114,9 @@ sudo myinstall apps upgrade --root /srv/nas/stacks --confirm
 `myinstall <app>` first searches the canonical NAS roots. If no local manifest
 exists, it resolves non-secret metadata from the public `catalog/apps.json`.
 It installs an absent application and upgrades an installed application to the
-latest release. Private GitHub releases require `MYINSTALL_GITHUB_TOKEN`; the
-application repository itself is not cloned. Use `sudo myinstall <app> --update` only when the operator has
+latest release. Private GitHub releases require `MYINSTALL_GITHUB_TOKEN`, while
+private GHCR images require `MYINSTALL_GHCR_TOKEN`; the application repository
+itself is not cloned. Use `sudo myinstall <app> --update` only when the operator has
 intentionally prepared the target with elevated privileges; the command does
 not grant or manage sudo permissions itself.
 
@@ -129,15 +130,14 @@ is always the positional token: `myinstall mytask`. Application updates use
 `myinstall mytask --update`. A positional token is never treated as an
 internal command.
 
-For private applications, configure the token once with
-`sudo myinstall auth setup`. It validates the hidden input and stores only
+For private applications, configure both tokens once with
+`sudo myinstall auth setup`: a Fine-grained token with `Contents: Read-only`
+for private source/release repositories and a Classic PAT with
+`read:packages` for GHCR. It validates the hidden inputs and stores only
 `/srv/nas/secrets/myinstall.env` with mode `0600`.
-Check it at any time with `sudo myinstall auth status`. If GitHub returns
-`401` because the token expired, was revoked, or is invalid, myinstall prints
-the same recovery hint: create a new Fine-grained token at
-<https://github.com/settings/personal-access-tokens>, grant it access to the
-private repository with `Contents: Read-only`, and run
-`sudo myinstall auth setup` again. The token value is never printed.
+Check both tokens at any time with `sudo myinstall auth status`. If GitHub
+returns `401` because either token expired, was revoked, or is invalid,
+myinstall prints the recovery hint. The token values are never printed.
 
 The application bootstrap downloads a pinned `myinstall` release bundle and
 verifies its SHA-256. Target prerequisites depend on the manifest runtime:

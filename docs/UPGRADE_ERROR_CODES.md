@@ -22,7 +22,7 @@ compose pull` загружает образ, но не запускает кон
 | 4 | `UPG-004` | Проверка запроса | Образ не immutable | semver `vX.Y.Z` или digest |
 | 5 | `UPG-005` | Подготовка релиза | Release metadata или Compose template недоступны | `release_source`, `compose_source`, URL, token |
 | 6 | `UPG-006` | Проверка Compose contract | Шаблон не соответствует manifest | `deploy/bootstrap/stack-compose.yml` |
-| 7 | `UPG-007` | Доступ к registry | Не выполнен login в private registry | `MYINSTALL_GITHUB_TOKEN` и права |
+| 7 | `UPG-007` | Доступ к registry | Не выполнен login в private registry | `MYINSTALL_GHCR_TOKEN` и `read:packages` |
 | 8 | `UPG-008` | Загрузка образа | `docker compose pull` завершился ошибкой | tag/digest, сеть, registry, disk |
 | 9 | `UPG-009` | Запуск runtime | `docker compose up -d` завершился ошибкой | `docker compose logs`, конфигурация |
 | 10 | `UPG-010` | Миграция | `migration_command` вернул ошибку | `diagnostic`, состояние БД |
