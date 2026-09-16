@@ -526,6 +526,10 @@ def build_parser() -> argparse.ArgumentParser:
     sync.add_argument("app_id")
     sync.add_argument("--version")
     sync.add_argument("--image")
+    update = sub.add_parser("update")
+    update.add_argument("app_id")
+    update.add_argument("--version")
+    update.add_argument("--image")
     app = sub.add_parser("app")
     app_sub = app.add_subparsers(dest="app_action", required=True)
     app_install = app_sub.add_parser("install")
@@ -536,7 +540,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     raw_argv = list(sys.argv[1:] if argv is None else argv)
-    commands = {"plan", "doctor", "check", "install", "upgrade", "rollback", "remove", "apps", "app", "secret", "sync"}
+    commands = {
+        "plan", "doctor", "check", "install", "upgrade", "rollback", "remove",
+        "apps", "app", "secret", "sync", "update",
+    }
     if raw_argv and raw_argv[0] not in commands and not raw_argv[0].startswith("-"):
         raw_argv.insert(0, "sync")
     args = build_parser().parse_args(raw_argv)
@@ -553,6 +560,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "app":
             return do_app_install(args.manifest_url, args.confirm)
         if args.command == "sync":
+            return do_app_sync(args.app_id, args.version, args.image)
+        if args.command == "update":
             return do_app_sync(args.app_id, args.version, args.image)
         path = args.manifest.expanduser().resolve()
         data = manifest.load(path)

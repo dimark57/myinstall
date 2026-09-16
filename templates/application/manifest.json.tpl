@@ -10,6 +10,10 @@
   "release_asset_pattern": "{{RELEASE_ASSET_PATTERN}}",
   "image_template": "{{IMAGE_TEMPLATE}}",
   "image": "{{IMAGE}}",
+  "cli": {
+    "name": "{{APP_ID}}",
+    "commands": ["--version", "--help", "man", "doctor", "update"]
+  },
   "artifact": {
     "url": "{{ARTIFACT_URL}}",
     "sha256": "{{ARTIFACT_SHA256}}"

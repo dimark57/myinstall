@@ -9,6 +9,8 @@ Docker/Compose как один из runtime adapters устанавливаем�
 Latest release: `v0.3.5`
 
 - Install contract: [docs/INTEGRATION.md](docs/INTEGRATION.md)
+- GitHub application release contract: [docs/GITHUB_APPLICATION_RELEASE_CONTRACT.md](docs/GITHUB_APPLICATION_RELEASE_CONTRACT.md)
+- Application CLI contract: [docs/APPLICATION_CLI_CONTRACT.md](docs/APPLICATION_CLI_CONTRACT.md)
 - Platform matrix: [PLATFORMS.md](PLATFORMS.md)
 - API contract: [API.md](API.md)
 - Releases: https://github.com/dimark57/myinstall/releases

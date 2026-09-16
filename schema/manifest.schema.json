@@ -14,6 +14,19 @@
     "current_version": {"type": "string", "pattern": "^v?[0-9]+\\.[0-9]+\\.[0-9]+$"},
     "release_asset_pattern": {"type": "string"},
     "image_template": {"type": "string"},
+    "cli": {
+      "type": "object",
+      "required": ["name", "commands"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        "commands": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string"}
+        }
+      },
+      "additionalProperties": false
+    },
     "compose_source_url": {"type": "string", "format": "uri", "pattern": "^https://"},
     "stack_path": {"type": "string"},
     "data_path": {"type": "string"},
@@ -90,6 +103,13 @@
   },
   "additionalProperties": true,
   "allOf": [
+    {
+      "if": {
+        "required": ["kind"],
+        "properties": {"kind": {"const": "application"}}
+      },
+      "then": {"required": ["cli"]}
+    },
     {
       "if": {"properties": {"runtime": {"enum": ["docker", "mixed"]}}},
       "then": {"required": ["image"]}

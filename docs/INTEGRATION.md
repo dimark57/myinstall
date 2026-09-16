@@ -42,6 +42,30 @@ executes `install --manifest ... [--image IMAGE] --confirm`. CI may pass the
 fresh immutable digest on first install; the manifest remains the source of
 truth for the application contract.
 
+## GitHub publication contract
+
+An installable application publishes every production version as:
+
+```text
+vMAJOR.MINOR.PATCH tag
+  -> green tests
+  -> immutable GHCR image or GitHub Release artifact + SHA256SUMS
+  -> GitHub Release with the same tag
+  -> rollout
+```
+
+`release_source` must identify that GitHub repository. A GHCR image tag
+without a matching GitHub Release is not discoverable by `myinstall`.
+Operators use the same idempotent command for every application:
+
+```bash
+myinstall <app>
+sudo myinstall <app>   # only when host privileges are intentionally required
+```
+
+The command installs an absent runtime and upgrades an installed runtime to
+the latest stable GitHub Release.
+
 ## Manifest ownership
 
 Required fields are the stable API:

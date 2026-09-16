@@ -3,6 +3,9 @@
 The stable integration surface for skills and application installers is the
 JSON CLI. Human-readable output is not an API.
 
+Application publication and release discovery follow
+[the GitHub application release contract](docs/GITHUB_APPLICATION_RELEASE_CONTRACT.md).
+
 ## Read-only
 
 ```text
