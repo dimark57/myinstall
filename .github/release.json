@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "current_version": "0.3.19",
+  "current_version": "0.3.20",
   "targets": [
     {
       "path": "src/myinstall/__init__.py",
