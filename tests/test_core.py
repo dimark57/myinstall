@@ -4,6 +4,7 @@ import json
 import os
 import stat
 import tempfile
+import urllib.error
 import unittest
 from unittest.mock import patch
 from pathlib import Path
@@ -162,6 +163,19 @@ class CoreTest(unittest.TestCase):
         with patch("myinstall.github.platform_name", return_value="darwin-arm64"):
             selected = github.asset(release, "myapp-{platform}")
         self.assertEqual(selected["name"], "myapp-darwin-arm64")
+
+    def test_github_unauthorized_response_identifies_token_problem(self) -> None:
+        error = urllib.error.HTTPError(
+            "https://api.github.com/user",
+            401,
+            "Unauthorized",
+            {},
+            None,
+        )
+        with patch("myinstall.github.urllib.request.urlopen", side_effect=error):
+            with self.assertRaises(github.GitHubAuthError) as raised:
+                github._request("https://api.github.com/user")
+        self.assertIn("expired", str(raised.exception))
 
     def test_discovery_reads_manifests_without_registry(self) -> None:
         root = self.root / "stacks"

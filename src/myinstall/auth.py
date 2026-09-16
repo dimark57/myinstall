@@ -3,13 +3,17 @@ from __future__ import annotations
 import getpass
 import os
 import sys
-from pathlib import Path
 
-from . import github, secrets
+from . import github, paths, secrets
 
 
-AUTH_SECRET_PATH = Path("/srv/nas/secrets/myinstall.env")
+AUTH_SECRET_PATH = paths.nas_root() / "secrets" / "myinstall.env"
 AUTH_KEYS = ("MYINSTALL_GITHUB_TOKEN", "MYINSTALL_GITHUB_USER")
+TOKEN_SETUP_HINT = (
+    "Получите новый GitHub token в https://github.com/settings/personal-access-tokens "
+    "(Fine-grained token: доступ к нужным private-репозиториям и Contents: Read-only), "
+    "затем выполните: sudo myinstall auth setup"
+)
 
 
 def load() -> None:
@@ -31,7 +35,7 @@ def setup() -> int:
         return 2
     login = github.validate_token(token)
     if not login:
-        print("GitHub token validation failed", file=os.sys.stderr)
+        print(f"GitHub token validation failed. {TOKEN_SETUP_HINT}", file=sys.stderr)
         return 1
     os.environ["MYINSTALL_GITHUB_TOKEN"] = token
     os.environ["MYINSTALL_GITHUB_USER"] = login
@@ -44,3 +48,26 @@ def setup() -> int:
     )
     print(f"GitHub credentials saved to {AUTH_SECRET_PATH} (mode 0600)")
     return 0
+
+
+def status() -> tuple[dict[str, str], int]:
+    """Check the configured GitHub token without exposing its value."""
+    token = os.environ.get("MYINSTALL_GITHUB_TOKEN")
+    if not token:
+        return (
+            {
+                "state": "missing",
+                "hint": TOKEN_SETUP_HINT,
+            },
+            1,
+        )
+    login = github.validate_token(token)
+    if not login:
+        return (
+            {
+                "state": "expired_or_invalid",
+                "hint": TOKEN_SETUP_HINT,
+            },
+            1,
+        )
+    return {"state": "valid", "github_user": login}, 0

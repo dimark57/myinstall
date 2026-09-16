@@ -12,7 +12,7 @@
       "current_version": "v0.1.61",
       "image_template": "ghcr.io/dimark57/mytask:{tag}",
       "image": "ghcr.io/dimark57/mytask:v0.1.61",
-      "stack_path": "/srv/nas/stacks/apps/mytask",
+      "stack_path": "/srv/nas/stacks/utilites/mytask",
       "data_path": "/srv/nas/data/mythings",
       "secret_path": "/srv/nas/secrets/mytask.env",
       "secret_mount": "/run/mytask.env",
@@ -67,7 +67,7 @@
         "sha256": "a83fe2ad8b455f9a493cdf689e9a329c11253731fe7e80acdbfd5e9959560654"
       },
       "install_path": "/srv/nas/stacks/apps/myqa/releases/current/myqa",
-      "stack_path": "/srv/nas/stacks/apps/myqa",
+      "stack_path": "/srv/nas/stacks/utilites/myqa",
       "data_path": "/srv/nas/data/myqa",
       "secret_path": "/srv/nas/secrets/myqa.env",
       "secret_mount": "/run/myqa.env",

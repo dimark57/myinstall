@@ -11,6 +11,10 @@ from dataclasses import dataclass
 from typing import Any
 
 
+class GitHubAuthError(ValueError):
+    """Raised when GitHub rejects the configured authentication token."""
+
+
 @dataclass(frozen=True)
 class Release:
     tag: str
@@ -62,8 +66,16 @@ def _request(url: str, *, etag: str | None = None) -> tuple[int, bytes, str | No
     except urllib.error.HTTPError as exc:
         if exc.code == 304:
             return 304, b"", etag
+        if exc.code == 401:
+            raise GitHubAuthError(
+                "GitHub token is expired, revoked, or invalid"
+            ) from exc
         if exc.code == 403:
-            raise ValueError("GitHub API rate limit or authorization failure") from exc
+            if exc.headers.get("X-RateLimit-Remaining") == "0":
+                raise ValueError("GitHub API rate limit exceeded") from exc
+            raise GitHubAuthError(
+                "GitHub token is not authorized for this repository"
+            ) from exc
         raise ValueError(f"GitHub request failed with HTTP {exc.code}") from exc
     except (OSError, urllib.error.URLError) as exc:
         raise ValueError("GitHub request failed") from exc

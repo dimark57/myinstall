@@ -12,15 +12,18 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from . import auth, catalog, __version__, discovery, github, manifest, native, postgres, runtime, secrets, service
+from . import auth, catalog, __version__, discovery, github, manifest, native, paths, postgres, progress, runtime, secrets, service
 
 MANUAL = """myinstall — host-side application installer
 
 Usage:
   myinstall <app>                 install or update an application
   myinstall <app> --update        update an application explicitly
+  myinstall --remove              remove the myinstall host utility
   myinstall --update              update the host utility itself
   myinstall install --manifest PATH --confirm
+  myinstall remove --manifest PATH --confirm
+  myinstall remove --manifest PATH --confirm --purge-data
   myinstall upgrade --manifest PATH --version VERSION --confirm
   myinstall doctor --manifest PATH
 
@@ -30,8 +33,22 @@ such as `mytask --update` belong to the application executable.
 
 
 def output(value: dict[str, Any], code: int = 0) -> int:
+    progress.finish_active()
     print(json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True))
     return code
+
+
+def ask_yes_no(question: str, *, default: bool = False) -> bool:
+    if not sys.stdin.isatty() or not sys.stderr.isatty():
+        return default
+    suffix = "[Y/n]" if default else "[y/N]"
+    try:
+        answer = input(f"{question} {suffix} ").strip().lower()
+    except EOFError:
+        return default
+    if not answer:
+        return default
+    return answer in {"y", "yes", "д", "да"}
 
 
 def persist_manifest(path: Path, data: dict[str, Any]) -> None:
@@ -63,15 +80,19 @@ case "${{1:-}}" in
   --version)
     printf '%s %s\\n' {app} {version}
     ;;
-  --help|-h|--man)
-    printf '%s --version\\n%s --help\\n%s --man\\n%s --doctor\\n%s --update\\n' {app} {app} {app} {app} {app}
+  --help|-h|help|man|--man)
+    printf '%s --version\\n%s --help\\n%s help\\n%s man\\n%s doctor\\n%s update\\n' {app} {app} {app} {app} {app} {app}
     ;;
-  --doctor)
+  doctor|--doctor)
     exec myinstall doctor --manifest {manifest_path}
     ;;
-  --update)
+  update|--update)
     shift
     exec myinstall {app} --update "$@"
+    ;;
+  remove|--remove)
+    shift
+    exec myinstall remove --manifest {manifest_path} --confirm --interactive "$@"
     ;;
   *)
     printf 'usage: %s --help\\n' {app} >&2
@@ -115,6 +136,48 @@ def do_self_update() -> int:
     finally:
         artifact.unlink(missing_ok=True)
     return output({"mode": "self-update", "state": "updated", "version": release.tag})
+
+
+def do_self_remove(*, purge_secrets: bool = False) -> int:
+    """Remove the host utility without touching installed applications."""
+    target = Path(os.environ.get("MYINSTALL_EXECUTABLE", sys.argv[0])).resolve()
+    secret = auth.AUTH_SECRET_PATH
+    if not purge_secrets:
+        purge_secrets = ask_yes_no(
+            "Удалить сохранённый GitHub token myinstall?",
+            default=False,
+        )
+    if purge_secrets:
+        secret.unlink(missing_ok=True)
+    if not target.is_file():
+        return output(
+            {
+                "ok": False,
+                "error": "myinstall executable not found",
+                "target": str(target),
+                "secret": "purged" if purge_secrets else "preserved",
+            },
+            1,
+        )
+    if not os.access(target, os.W_OK):
+        return output(
+            {
+                "ok": False,
+                "error": f"myinstall executable is not writable: {target}",
+                "hint": "rerun this command with sudo",
+            },
+            1,
+        )
+    target.unlink()
+    return output(
+        {
+            "mode": "self-remove",
+            "state": "removed",
+            "target": str(target),
+            "secret": "purged" if purge_secrets else "preserved",
+            "applications": "preserved",
+        }
+    )
 
 
 def report(manifest_path: Path, data: dict[str, Any]) -> dict[str, Any]:
@@ -228,14 +291,19 @@ def report(manifest_path: Path, data: dict[str, Any]) -> dict[str, Any]:
 
 
 def do_install(path: Path, data: dict[str, Any]) -> int:
+    bar = progress.Progress("install", 8)
+    bar.step("validate manifest")
     errors = manifest.validate_paths(data)
     if errors:
         return output({"ok": False, "error": "invalid manifest paths", "details": errors}, 1)
     stack = Path(data["stack_path"])
     with runtime.lock(stack):
+        bar.step("prepare application directories")
         Path(data["data_path"]).mkdir(parents=True, exist_ok=True)
+        bar.step("prepare secrets")
         created = secrets.ensure(data)
         values = secrets.read(Path(data["secret_path"]))
+        bar.step("provision dependencies")
         provisioned, values, postgres_state = postgres.provision(data, values)
         if not provisioned:
             return output({"ok": False, "error": postgres_state}, 1)
@@ -246,6 +314,7 @@ def do_install(path: Path, data: dict[str, Any]) -> int:
             return output({"ok": False, "error": "required secrets missing", "keys": missing}, 1)
         runtime_kind = str(data.get("runtime", "native"))
         if runtime_kind in {"native", "systemd", "launchd"}:
+            bar.step("download and install artifact")
             installed = native.install_artifact(data)
             if runtime_kind in {"systemd", "launchd"}:
                 ok, diagnostic = service.install_unit(data)
@@ -254,15 +323,18 @@ def do_install(path: Path, data: dict[str, Any]) -> int:
                 ok, diagnostic = service.action(data, "restart")
                 if not ok:
                     return output({"ok": False, "error": "service start failed", "diagnostic": diagnostic}, 1)
+            bar.step("run application hooks")
             ok, diagnostic = native.run_hook(data, "install_command")
             if not ok:
                 return output({"ok": False, "error": "native install hook failed", "diagnostic": diagnostic}, 1)
             ok, diagnostic = native.run_hook(data, "migration_command")
             if not ok:
                 return output({"ok": False, "error": "migration failed", "diagnostic": diagnostic}, 1)
+            bar.step("install application command")
             install_app_command(path, data)
             return output({"mode": "install", "runtime": runtime_kind, "path": str(installed), "secret_keys_created": created})
         if runtime_kind == "none":
+            bar.step("install application command")
             install_app_command(path, data)
             return output({"mode": "install", "runtime": "none", "secret_keys_created": created})
         if runtime_kind not in {"docker", "mixed"}:
@@ -270,6 +342,7 @@ def do_install(path: Path, data: dict[str, Any]) -> int:
                 {"ok": False, "error": "manifest must declare runtime=native|systemd|launchd|docker|mixed|none"},
                 1,
             )
+        bar.step("materialize application runtime")
         compose = runtime.materialize(path, data)
         compose_errors = runtime.validate_compose(compose, data)
         if compose_errors:
@@ -282,11 +355,13 @@ def do_install(path: Path, data: dict[str, Any]) -> int:
             return output({"ok": False, "error": "image pull failed"}, 1)
         if not runtime.compose(compose, ["up", "-d"], timeout=300):
             return output({"ok": False, "error": "stack start failed"}, 1)
+        bar.step("run application hooks")
         ok, diagnostic = native.run_hook(data, "migration_command")
         if not ok:
             return output({"ok": False, "error": "migration failed", "diagnostic": diagnostic}, 1)
         healthy = runtime.health(data)
         if healthy:
+            bar.step("install application command")
             install_app_command(path, data)
         result = {"mode": "install", "secret_keys_created": created, "health": healthy}
         return output(result, 0 if healthy else 1)
@@ -314,6 +389,8 @@ def resolve_release(data: dict[str, Any], version: str) -> dict[str, Any]:
 
 
 def do_upgrade(path: Path, data: dict[str, Any], image: str | None, version: str | None) -> int:
+    bar = progress.Progress("upgrade", 5)
+    bar.step("validate release request")
     runtime_kind = str(data.get("runtime", "native"))
     if runtime_kind in {"native", "systemd", "launchd"} and not version:
         return output({"ok": False, "error": "native upgrade requires --version"}, 1)
@@ -330,6 +407,7 @@ def do_upgrade(path: Path, data: dict[str, Any], image: str | None, version: str
         if errors:
             return output({"ok": False, "error": "invalid manifest paths", "details": errors}, 1)
         with runtime.lock(Path(data["stack_path"])):
+            bar.step("download and install artifact")
             previous = Path(str(data["install_path"])).read_bytes()
             installed = native.install_artifact(data, version=(version or "current").lstrip("v"))
             if runtime_kind in {"systemd", "launchd"}:
@@ -341,6 +419,7 @@ def do_upgrade(path: Path, data: dict[str, Any], image: str | None, version: str
                 if runtime_kind in {"systemd", "launchd"}:
                     service.action(data, "restart")
                 return output({"ok": False, "error": "healthcheck failed; previous artifact restored"}, 1)
+            bar.step("run upgrade hooks")
             ok, diagnostic = native.run_hook(data, "upgrade_command")
             if not ok:
                 if runtime_kind in {"systemd", "launchd"}:
@@ -360,6 +439,7 @@ def do_upgrade(path: Path, data: dict[str, Any], image: str | None, version: str
             if version:
                 data["current_version"] = version
                 persist_manifest(path, data)
+            bar.step("verify health")
             return output({"mode": "upgrade", "runtime": runtime_kind, "version": version or "current"})
     if runtime_kind not in {"docker", "mixed"}:
         return output({"ok": False, "error": "runtime does not support upgrade"}, 1)
@@ -367,6 +447,7 @@ def do_upgrade(path: Path, data: dict[str, Any], image: str | None, version: str
         return output({"ok": False, "error": "Docker upgrade requires an immutable vX.Y.Z tag or digest"}, 1)
     stack = Path(data["stack_path"])
     with runtime.lock(stack):
+        bar.step("update application runtime")
         compose = runtime.materialize(path, data)
         before = compose.read_text(encoding="utf-8")
         backup = stack / ".myinstall.previous-compose"
@@ -398,6 +479,7 @@ def do_upgrade(path: Path, data: dict[str, Any], image: str | None, version: str
             data["current_version"] = version
             data["image"] = image
             persist_manifest(path, data)
+        bar.step("verify health")
         return output({"mode": "upgrade", "image": image, "secrets_changed": False}, 0)
 
 
@@ -433,25 +515,114 @@ def do_rollback(data: dict[str, Any]) -> int:
     return output({"ok": False, "error": "runtime does not support rollback"}, 1)
 
 
-def do_remove(path: Path, data: dict[str, Any]) -> int:
-    """Remove only application runtime state; shared infrastructure is never targeted."""
+def _safe_app_path(value: str, app: str) -> Path:
+    path = Path(value).expanduser().resolve()
+    allowed_roots = (
+        paths.stack_root().resolve(),
+        Path("/srv/nas/stacks").resolve(),
+        Path("/Volumes/Nas/stacks").resolve(),
+    )
+    if not any(path == root or root in path.parents for root in allowed_roots):
+        raise ValueError("application path is outside the canonical stacks roots")
+    if path.name != app:
+        raise ValueError("application path must end with the manifest app name")
+    return path
+
+
+def _safe_data_path(value: str, app: str) -> Path:
+    path = Path(value).expanduser().resolve()
+    roots = (
+        paths.nas_root().joinpath("data").resolve(),
+        Path("/srv/nas/data").resolve(),
+        Path("/Volumes/Nas/data").resolve(),
+    )
+    if path.name != app or not any(path.parent == root for root in roots):
+        raise ValueError("application data path is outside the canonical data root")
+    return path
+
+
+def _safe_secret_path(value: str, app: str) -> Path:
+    path = Path(value).expanduser().resolve()
+    roots = (
+        paths.nas_root().joinpath("secrets").resolve(),
+        Path("/srv/nas/secrets").resolve(),
+        Path("/Volumes/Nas/secrets").resolve(),
+    )
+    if path.name != f"{app}.env" or not any(path.parent == root for root in roots):
+        raise ValueError("application secret path is outside the canonical secrets root")
+    return path
+
+
+def _remove_app_wrapper(data: dict[str, Any]) -> None:
+    cli = data.get("cli")
+    if not isinstance(cli, dict) or not cli.get("name"):
+        return
+    target = Path(str(cli.get("bin_path", f"/usr/local/bin/{cli['name']}"))).expanduser()
+    if not target.is_file():
+        return
+    content = target.read_text(encoding="utf-8")
+    if "myinstall" in content and str(data["app"]) in content:
+        target.unlink()
+
+
+def do_remove(
+    path: Path,
+    data: dict[str, Any],
+    *,
+    purge_data: bool = False,
+    purge_secrets: bool = False,
+    interactive: bool = False,
+) -> int:
+    """Remove application runtime state without touching shared infrastructure."""
+    if interactive:
+        purge_data = ask_yes_no(
+            f"Удалить данные приложения {data['app']}?",
+            default=purge_data,
+        )
+        purge_secrets = ask_yes_no(
+            f"Удалить secrets приложения {data['app']}?",
+            default=purge_secrets,
+        )
+    bar = progress.Progress("remove", 5)
     runtime_kind = str(data.get("runtime", "native"))
-    with runtime.lock(Path(data["stack_path"])):
+    app = str(data["app"])
+    stack = _safe_app_path(str(data["stack_path"]), app)
+    data_path = Path(str(data["data_path"])).expanduser().resolve()
+    secret_path = Path(str(data["secret_path"])).expanduser().resolve()
+    if purge_data:
+        data_path = _safe_data_path(str(data["data_path"]), app)
+    if purge_secrets:
+        secret_path = _safe_secret_path(str(data["secret_path"]), app)
+    bar.step("validate removal scope")
+    with runtime.lock(stack):
+        bar.step("stop application runtime")
         if runtime_kind in {"docker", "mixed"}:
             compose = runtime.materialize(path, data)
             if not runtime.compose(compose, ["down"], timeout=300):
                 return output({"ok": False, "error": "application stack removal failed"}, 1)
         elif runtime_kind in {"systemd", "launchd"}:
-            ok, diagnostic = service.action(data, "stop")
+            ok, diagnostic = service.remove_unit(data)
             if not ok:
-                return output({"ok": False, "error": "service stop failed", "diagnostic": diagnostic}, 1)
+                return output({"ok": False, "error": "service removal failed", "diagnostic": diagnostic}, 1)
+        ok, diagnostic = native.run_hook(data, "remove_command")
+        if not ok:
+            return output({"ok": False, "error": "remove hook failed", "diagnostic": diagnostic}, 1)
+        bar.step("remove application runtime files")
+        shutil.rmtree(stack, ignore_errors=False)
+        _remove_app_wrapper(data)
+        bar.step("preserve shared data and secrets")
+        if purge_data:
+            shutil.rmtree(data_path, ignore_errors=False)
+        if purge_secrets:
+            secret_path.unlink(missing_ok=True)
+        bar.step("complete removal")
         return output(
             {
                 "mode": "remove",
                 "runtime": runtime_kind,
                 "shared_postgres": "preserved",
-                "data": "preserved",
-                "secrets": "preserved",
+                "data": "purged" if purge_data else "preserved",
+                "secrets": "purged" if purge_secrets else "preserved",
             }
         )
 
@@ -640,6 +811,22 @@ def build_parser() -> argparse.ArgumentParser:
         command.add_argument("--manifest", required=True, type=Path)
         if name in {"install", "upgrade", "rollback", "remove"}:
             command.add_argument("--confirm", action="store_true")
+        if name == "remove":
+            command.add_argument(
+                "--purge-data",
+                action="store_true",
+                help="also delete the application data directory",
+            )
+            command.add_argument(
+                "--purge-secrets",
+                action="store_true",
+                help="also delete the application secret file",
+            )
+            command.add_argument(
+                "--interactive",
+                action="store_true",
+                help="ask before deleting application data and secrets",
+            )
         if name == "upgrade":
             command.add_argument("--image")
             command.add_argument("--version")
@@ -669,6 +856,7 @@ def build_parser() -> argparse.ArgumentParser:
     auth_parser = sub.add_parser("auth")
     auth_sub = auth_parser.add_subparsers(dest="auth_action", required=True)
     auth_sub.add_parser("setup", help="configure a GitHub token for private releases")
+    auth_sub.add_parser("status", help="check the configured GitHub token")
     app = sub.add_parser("app")
     app_sub = app.add_subparsers(dest="app_action", required=True)
     app_install = app_sub.add_parser("install")
@@ -682,6 +870,8 @@ def main(argv: list[str] | None = None) -> int:
     raw_argv = list(sys.argv[1:] if argv is None else argv)
     if raw_argv == ["--update"]:
         return do_self_update()
+    if raw_argv and raw_argv[0] == "--remove":
+        return do_self_remove(purge_secrets="--purge-secrets" in raw_argv[1:])
     if len(raw_argv) >= 2 and raw_argv[0] not in {
         "plan", "doctor", "check", "install", "upgrade", "rollback", "remove",
         "apps", "app", "secret", "sync", "update",
@@ -714,7 +904,10 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "app":
             return do_app_install(args.manifest_url, args.confirm)
         if args.command == "auth":
-            return auth.setup()
+            if args.auth_action == "setup":
+                return auth.setup()
+            status, code = auth.status()
+            return output({"mode": "auth status", **status}, code)
         if args.command == "sync":
             return do_app_sync(args.app_id, args.version, args.image)
         if args.command == "update":
@@ -750,7 +943,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "remove":
             if not args.confirm:
                 return output({"ok": False, "error": "remove requires --confirm"}, 1)
-            return do_remove(path, data)
+            return do_remove(
+                path,
+                data,
+                purge_data=args.purge_data,
+                purge_secrets=args.purge_secrets,
+                interactive=args.interactive,
+            )
         if args.action == "status":
             return output({"mode": "secret status", **secrets.status(data)})
         if args.action == "ensure":
@@ -805,6 +1004,15 @@ def main(argv: list[str] | None = None) -> int:
                 "ok": False,
                 "error": f"{type(exc).__name__}: {exc}",
                 "hint": "rerun this command with sudo",
+            },
+            1,
+        )
+    except github.GitHubAuthError as exc:
+        return output(
+            {
+                "ok": False,
+                "error": str(exc),
+                "hint": auth.TOKEN_SETUP_HINT,
             },
             1,
         )

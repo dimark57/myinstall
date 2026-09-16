@@ -1,5 +1,6 @@
 import pytest
 import json
+import os
 from unittest.mock import patch
 from pathlib import Path
 
@@ -17,6 +18,25 @@ def test_sync_parser_accepts_explicit_release() -> None:
     assert args.command == "sync"
     assert args.app_id == "mytask"
     assert args.version == "v0.1.60"
+
+
+def test_remove_parser_supports_explicit_data_and_secret_purge() -> None:
+    args = cli.build_parser().parse_args(
+        [
+            "remove",
+            "--manifest",
+            "/srv/nas/stacks/apps/mytask/manifest.json",
+            "--confirm",
+            "--purge-data",
+            "--purge-secrets",
+            "--interactive",
+        ]
+    )
+    assert args.command == "remove"
+    assert args.confirm is True
+    assert args.purge_data is True
+    assert args.purge_secrets is True
+    assert args.interactive is True
 
 
 def test_update_alias_delegates_to_application_sync() -> None:
@@ -55,6 +75,15 @@ def test_auth_setup_is_an_explicit_command() -> None:
     setup.assert_called_once_with()
 
 
+def test_auth_status_reports_token_state(capsys) -> None:
+    with patch(
+        "myinstall.cli.auth.status",
+        return_value=({"state": "expired_or_invalid", "hint": "run auth setup"}, 1),
+    ):
+        assert cli.main(["auth", "status"]) == 1
+    assert '"expired_or_invalid"' in capsys.readouterr().out
+
+
 def test_application_command_wrapper_delegates_update(tmp_path) -> None:
     manifest = tmp_path / "manifest.json"
     target = tmp_path / "bin" / "mytask"
@@ -70,6 +99,20 @@ def test_application_command_wrapper_delegates_update(tmp_path) -> None:
     assert target.stat().st_mode & 0o111
     wrapper = target.read_text(encoding="utf-8")
     assert "myinstall mytask --update" in wrapper
+    assert "myinstall remove --manifest" in wrapper
+    assert "shift\n    exec myinstall remove" in wrapper
+
+
+def test_self_remove_deletes_only_myinstall_binary(tmp_path, capsys) -> None:
+    target = tmp_path / "myinstall"
+    target.write_text("#!/bin/sh\n", encoding="utf-8")
+    target.chmod(0o755)
+    with patch.dict(os.environ, {"MYINSTALL_EXECUTABLE": str(target)}), patch(
+        "myinstall.cli.ask_yes_no", return_value=False
+    ):
+        assert cli.main(["--remove"]) == 0
+    assert not target.exists()
+    assert '"applications": "preserved"' in capsys.readouterr().out
 
 
 def test_missing_local_manifest_is_materialized_from_public_catalog(tmp_path) -> None:
@@ -129,4 +172,8 @@ def test_myqa_catalog_entry_declares_native_application_contract() -> None:
         "--man",
         "--doctor",
         "--update",
+        "help",
+        "man",
+        "doctor",
+        "update",
     }

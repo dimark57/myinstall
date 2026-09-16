@@ -2,6 +2,26 @@
 
 All notable changes to `myinstall` are documented here.
 
+## Unreleased
+
+### Added
+
+- Detect expired, revoked, or invalid GitHub tokens and print recovery
+  instructions with `sudo myinstall auth setup`.
+- Add `myinstall auth status` to validate the configured token without exposing
+  its value.
+
+## [0.3.14] - 2026-09-16
+
+### Added
+
+- Add interactive progress output for install, upgrade, and remove lifecycle
+  operations.
+- Add application and host utility removal with explicit data/secret purge
+  confirmation.
+- Use the new-machine `stacks/utilites/<app>` layout on Linux and macOS.
+- Localize application data and secrets under the host NAS root.
+
 ## [0.3.5] - 2026-09-16
 
 ### Added

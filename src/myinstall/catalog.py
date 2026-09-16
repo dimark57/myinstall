@@ -5,6 +5,8 @@ import os
 import urllib.request
 from typing import Any
 
+from .paths import localize_manifest_paths
+
 
 DEFAULT_CATALOG_URL = (
     "https://raw.githubusercontent.com/dimark57/myinstall/main/catalog/apps.json"
@@ -26,4 +28,4 @@ def fetch(app_id: str) -> dict[str, Any] | None:
         return None
     if str(entry.get("app", "")) != app_id:
         raise ValueError(f"catalog app id mismatch: {app_id}")
-    return entry
+    return localize_manifest_paths(entry)

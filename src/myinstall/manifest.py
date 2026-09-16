@@ -5,6 +5,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from . import paths
+
 try:
     from jsonschema import Draft202012Validator, FormatChecker
 except ImportError:  # The release zipapp keeps a dependency-free fallback.
@@ -83,7 +85,12 @@ def compose_source(path: Path, manifest: dict[str, Any]) -> Path:
 
 def validate_paths(manifest: dict[str, Any]) -> list[str]:
     errors: list[str] = []
-    roots = (Path("/srv/nas").resolve(), Path("/Volumes/Nas").resolve(), Path("/run").resolve())
+    roots = (
+        Path("/srv/nas").resolve(),
+        Path("/Volumes/Nas").resolve(),
+        paths.nas_root().resolve(),
+        Path("/run").resolve(),
+    )
     for key in ("stack_path", "data_path", "secret_path", "secret_mount"):
         value = str(manifest[key])
         path = Path(value).expanduser()

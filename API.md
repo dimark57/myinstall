@@ -16,6 +16,7 @@ myinstall secret status --manifest PATH
 myinstall apps list --root PATH
 myinstall apps check --root PATH
 myinstall apps doctor --root PATH
+myinstall auth status
 ```
 
 These commands do not change the application repository, secret file, Compose
@@ -28,6 +29,8 @@ myinstall install --manifest PATH [--image IMAGE] --confirm
 myinstall upgrade --manifest PATH [--version VERSION|--image IMAGE] --confirm
 myinstall rollback --manifest PATH --confirm
 myinstall remove --manifest PATH --confirm
+myinstall remove --manifest PATH --confirm [--purge-data] [--purge-secrets]
+myinstall --remove [--purge-secrets]
 myinstall apps upgrade --root PATH --confirm
 myinstall app install --manifest-url HTTPS_URL --confirm
 myinstall APP
@@ -44,6 +47,9 @@ myinstall secret remove --manifest PATH --name KEY --confirm
 
 All mutating operations acquire the per-application lock. Secret values and
 connection strings are never present in JSON output or command arguments.
+Interactive install, upgrade, and remove commands render progress on stderr;
+JSON output remains on stdout. Progress is disabled automatically when stderr
+is not a terminal or when `MYINSTALL_NO_PROGRESS=1` is set.
 
 `myinstall APP` is the idempotent operator entrypoint: it discovers the
 application manifest locally or from the public catalog, installs when the
@@ -53,6 +59,10 @@ The public catalog contains only non-secret metadata; private GitHub release
 and Compose requests use that token.
 `myinstall auth setup` validates a hidden token prompt and persists it with
 mode `0600` in `/srv/nas/secrets/myinstall.env`.
+`myinstall auth status` validates the configured token without printing it.
+GitHub `401` responses are reported as an expired, revoked, or invalid token
+and include the recovery command `sudo myinstall auth setup` plus a link to
+create a replacement Fine-grained token.
 `sudo myinstall APP`
 uses the same behavior with privileges supplied by the operator; myinstall
 does not alter sudoers or acquire privileges implicitly.
@@ -78,7 +88,13 @@ the infrastructure Compose contract, the `nas-infra` network, a separate
 admin secret, and the app-specific database/role. App Compose must not declare
 PostgreSQL services, `POSTGRES_*` variables, or `DATABASE_URL` values.
 Install/upgrade/remove must never destroy, stop, recreate, or `down` the
-cluster, and must never reuse another application's data directory.
+shared cluster, and must never reuse another application's data directory.
+Remove deletes only the application runtime by default. Data and secrets are
+preserved unless the operator explicitly passes `--purge-data` and/or
+`--purge-secrets`.
+`myinstall --remove` deletes the host utility itself, preserves installed
+applications, and asks interactively whether its saved GitHub token should be
+removed.
 
 ## Runtime values
 
@@ -87,3 +103,8 @@ cluster, and must never reuse another application's data directory.
 macOS launch agent. `runtime=docker` manages app-only Compose and requires an
 immutable `vX.Y.Z` tag or digest. `runtime=mixed` may use both an image and a
 native sidecar. `runtime=none` only provisions host state and secrets.
+
+New-machine application roots are `/srv/nas/stacks/utilites/<app>` on Linux
+and `~/nas/stacks/utilites/<app>` on macOS. Application data and secrets are
+stored under the matching `<nas-root>/data/<app>` and
+`<nas-root>/secrets/<app>.env` paths.

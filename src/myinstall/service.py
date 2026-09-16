@@ -75,3 +75,27 @@ def action(manifest: dict[str, Any], command: str) -> tuple[bool, str]:
         if command == "stop":
             return runtime.run_result(["launchctl", "unload", str(Path.home() / "Library/LaunchAgents" / label)])
     return True, ""
+
+
+def remove_unit(manifest: dict[str, Any]) -> tuple[bool, str]:
+    """Stop and remove the service definition owned by this application."""
+    manager = _manager(manifest)
+    name = _name(manifest)
+    if manager == "systemd":
+        ok, diagnostic = action(manifest, "stop")
+        if not ok:
+            return ok, diagnostic
+        ok, diagnostic = runtime.run_result(
+            ["sudo", "rm", "-f", f"/etc/systemd/system/{name}.service"],
+            timeout=120,
+        )
+        if not ok:
+            return ok, diagnostic
+        return runtime.run_result(["sudo", "systemctl", "daemon-reload"], timeout=120)
+    if manager == "launchd":
+        ok, diagnostic = action(manifest, "stop")
+        if not ok:
+            return ok, diagnostic
+        plist = Path.home() / "Library" / "LaunchAgents" / f"{name}.plist"
+        plist.unlink(missing_ok=True)
+    return True, ""

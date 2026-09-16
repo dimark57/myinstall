@@ -4,10 +4,11 @@ import re
 from pathlib import Path
 from typing import Any
 
-from . import github, manifest
+from . import github, manifest, paths
 
 
 DEFAULT_ROOTS = (
+    paths.stack_root(),
     Path("/srv/nas/Project"),
     Path("/srv/nas/stacks"),
     Path("/Volumes/Nas/Project"),

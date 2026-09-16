@@ -31,10 +31,20 @@ application:      read runtime configuration
 Canonical runtime layout:
 
 ```text
-/srv/nas/stacks/<zone>/<app>/
+Linux:
+/srv/nas/stacks/utilites/<app>/
 /srv/nas/data/<app>/
 /srv/nas/secrets/<app>.env
+
+macOS:
+~/nas/stacks/utilites/<app>/
+~/nas/data/<app>/
+~/nas/secrets/<app>.env
 ```
+
+New applications always use their own directory under `stacks/utilites`; the
+directory name is intentionally `utilites`. Legacy `/Volumes/Nas` and
+`stacks/apps` paths are not used for new-machine installs.
 
 PostgreSQL is a shared infrastructure service. Each application declares only
 its database and LOGIN role:
@@ -68,6 +78,11 @@ rollback, and remove never delete, recreate, stop, or `down` the shared stack.
 PostgreSQL data migration is an explicit operator workflow; it is never an
 implicit `pg_dump`/`pg_restore`.
 
+`remove` stops and deletes only the application runtime and generated wrapper.
+Application data and secrets are preserved by default. `--purge-data` and
+`--purge-secrets` explicitly delete those application-owned resources; shared
+PostgreSQL infrastructure remains untouched.
+
 ## Usage
 
 ```bash
@@ -76,17 +91,22 @@ sudo myinstall install --manifest deploy/bootstrap/manifest.json --confirm
 sudo myinstall upgrade --manifest deploy/bootstrap/manifest.json \
   --version v1.2.3 --confirm
 sudo myinstall rollback --manifest deploy/bootstrap/manifest.json --confirm
+sudo myinstall remove --manifest deploy/bootstrap/manifest.json --confirm
+sudo myinstall remove --manifest deploy/bootstrap/manifest.json --confirm \
+  --purge-data --purge-secrets
 sudo myinstall doctor --manifest deploy/bootstrap/manifest.json
 sudo myinstall secret rotate --manifest deploy/bootstrap/manifest.json --name database --confirm
 sudo myinstall remove --manifest deploy/bootstrap/manifest.json --confirm
 sudo myinstall mytask
 sudo myinstall myqa
+sudo myinstall --remove
 myinstall --help
 sudo myinstall --plan
 sudo myinstall --doctor
 sudo myinstall --update
 sudo myinstall mytask --update
 sudo myinstall auth setup
+sudo myinstall auth status
 sudo myinstall apps check --root /srv/nas/stacks
 sudo myinstall apps upgrade --root /srv/nas/stacks --confirm
 ```
@@ -99,6 +119,11 @@ application repository itself is not cloned. Use `sudo myinstall <app> --update`
 intentionally prepared the target with elevated privileges; the command does
 not grant or manage sudo permissions itself.
 
+`sudo myinstall --remove` removes only the host-side `myinstall` executable.
+Installed applications remain untouched. The command asks whether the saved
+myinstall GitHub token should also be removed; use `--purge-secrets` for a
+non-interactive explicit choice.
+
 `--help` and `--update` are internal commands of `myinstall`; an application
 is always the positional token: `myinstall mytask`. Application updates use
 `myinstall mytask --update`. A positional token is never treated as an
@@ -107,6 +132,12 @@ internal command.
 For private applications, configure the token once with
 `sudo myinstall auth setup`. It validates the hidden input and stores only
 `/srv/nas/secrets/myinstall.env` with mode `0600`.
+Check it at any time with `sudo myinstall auth status`. If GitHub returns
+`401` because the token expired, was revoked, or is invalid, myinstall prints
+the same recovery hint: create a new Fine-grained token at
+<https://github.com/settings/personal-access-tokens>, grant it access to the
+private repository with `Contents: Read-only`, and run
+`sudo myinstall auth setup` again. The token value is never printed.
 
 The application bootstrap downloads a pinned `myinstall` release bundle and
 verifies its SHA-256. Target prerequisites depend on the manifest runtime:
