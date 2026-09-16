@@ -119,7 +119,9 @@ def install_helper(manifest: dict[str, Any], executable: Path, server: str) -> t
     label = str(config.get("label", f"com.{manifest['app']}.helper"))
     username, uid, home = _launch_user()
     plist = home / "Library" / "LaunchAgents" / f"{label}.plist"
+    logs = home / "Library" / "Logs"
     plist.parent.mkdir(parents=True, exist_ok=True)
+    logs.mkdir(parents=True, exist_ok=True)
     plist_data = {
         "Label": label,
         "ProgramArguments": [str(executable), "--server", server],
@@ -127,11 +129,15 @@ def install_helper(manifest: dict[str, Any], executable: Path, server: str) -> t
         "KeepAlive": True,
         "ProcessType": "Background",
         "WorkingDirectory": str(home),
-        "StandardOutPath": str(home / "Library" / "Logs" / f"{label}.log"),
-        "StandardErrorPath": str(home / "Library" / "Logs" / f"{label}.error.log"),
+        "StandardOutPath": str(logs / f"{label}.log"),
+        "StandardErrorPath": str(logs / f"{label}.error.log"),
     }
     plist.write_bytes(plistlib.dumps(plist_data))
     os.chown(plist, uid, pwd.getpwnam(username).pw_gid)
+    runtime.run_result(
+        ["launchctl", "bootout", f"gui/{uid}/{label}"],
+        timeout=30,
+    )
     return runtime.run_result(["launchctl", "bootstrap", f"gui/{uid}", str(plist)], timeout=30)
 
 
