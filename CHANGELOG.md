@@ -2,7 +2,7 @@
 
 All notable changes to `myinstall` are documented here.
 
-## Unreleased
+## [0.3.16] - 2026-09-16
 
 ### Added
 
@@ -10,6 +10,12 @@ All notable changes to `myinstall` are documented here.
   instructions with `sudo myinstall auth setup`.
 - Add `myinstall auth status` to validate the configured token without exposing
   its value.
+
+### Fixed
+
+- Preserve the `v` prefix when resolving a GitHub Release by tag.
+- Include actionable repository and token guidance for GitHub 404 responses.
+- Update the `mytask` catalog entry to `v0.1.63`.
 
 ## [0.3.15] - 2026-09-16
 

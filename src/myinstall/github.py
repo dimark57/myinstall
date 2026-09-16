@@ -15,6 +15,9 @@ class GitHubAuthError(ValueError):
     """Raised when GitHub rejects the configured authentication token."""
 
 
+TOKEN_SETUP_URL = "https://github.com/settings/personal-access-tokens"
+
+
 @dataclass(frozen=True)
 class Release:
     tag: str
@@ -76,6 +79,15 @@ def _request(url: str, *, etag: str | None = None) -> tuple[int, bytes, str | No
             raise GitHubAuthError(
                 "GitHub token is not authorized for this repository"
             ) from exc
+        if exc.code == 404:
+            raise ValueError(
+                "GitHub repository or release was not found. "
+                "Check that release_source is correct and, for a private repository, "
+                "configure a Fine-grained token with Contents: Read-only access. "
+                f"Repository: {url.rsplit('/releases/', 1)[0] if '/releases/' in url else url}. "
+                f"Create or replace the token at {TOKEN_SETUP_URL}, then run "
+                "`sudo myinstall auth setup`."
+            ) from exc
         raise ValueError(f"GitHub request failed with HTTP {exc.code}") from exc
     except (OSError, urllib.error.URLError) as exc:
         raise ValueError("GitHub request failed") from exc
@@ -105,7 +117,7 @@ def latest(source: str, *, channel: str = "stable", etag: str | None = None) -> 
 
 def by_tag(source: str, tag: str) -> Release:
     status, body, response_etag = _request(
-        f"https://api.github.com/repos/{repository(source)}/releases/tags/{tag.lstrip('v')}"
+        f"https://api.github.com/repos/{repository(source)}/releases/tags/{tag}"
     )
     if status == 304:
         raise ValueError("release lookup unexpectedly returned 304")
