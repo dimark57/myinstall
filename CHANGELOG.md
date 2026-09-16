@@ -2,6 +2,12 @@
 
 All notable changes to `myinstall` are documented here.
 
+## [0.2.1] - 2026-09-16
+
+### Fixed
+
+- Release CI installs the test dependencies before validating release artifacts.
+
 ## [0.2.0] - 2026-09-16
 
 ### Added
