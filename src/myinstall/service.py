@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import plistlib
+import os
+import pwd
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -99,3 +101,51 @@ def remove_unit(manifest: dict[str, Any]) -> tuple[bool, str]:
         plist = Path.home() / "Library" / "LaunchAgents" / f"{name}.plist"
         plist.unlink(missing_ok=True)
     return True, ""
+
+
+def _launch_user() -> tuple[str, int, Path]:
+    username = os.environ.get("SUDO_USER", "").strip() if os.geteuid() == 0 else ""
+    if not username:
+        username = pwd.getpwuid(os.getuid()).pw_name
+    record = pwd.getpwnam(username)
+    return username, record.pw_uid, Path(record.pw_dir)
+
+
+def install_helper(manifest: dict[str, Any], executable: Path, server: str) -> tuple[bool, str]:
+    config = manifest.get("helper")
+    if not isinstance(config, dict):
+        return False, "manifest does not declare a Mac helper"
+    label = str(config.get("label", f"com.{manifest['app']}.helper"))
+    username, uid, home = _launch_user()
+    plist = home / "Library" / "LaunchAgents" / f"{label}.plist"
+    plist.parent.mkdir(parents=True, exist_ok=True)
+    plist_data = {
+        "Label": label,
+        "ProgramArguments": [str(executable), "--server", server],
+        "RunAtLoad": True,
+        "KeepAlive": True,
+        "ProcessType": "Background",
+        "WorkingDirectory": str(home),
+        "StandardOutPath": str(home / "Library" / "Logs" / f"{label}.log"),
+        "StandardErrorPath": str(home / "Library" / "Logs" / f"{label}.error.log"),
+    }
+    plist.write_bytes(plistlib.dumps(plist_data))
+    os.chown(plist, uid, pwd.getpwnam(username).pw_gid)
+    return runtime.run_result(["launchctl", "bootstrap", f"gui/{uid}", str(plist)], timeout=30)
+
+
+def helper_action(manifest: dict[str, Any], command: str) -> tuple[bool, str]:
+    config = manifest.get("helper")
+    if not isinstance(config, dict):
+        return False, "manifest does not declare a Mac helper"
+    label = str(config.get("label", f"com.{manifest['app']}.helper"))
+    _, uid, home = _launch_user()
+    plist = home / "Library" / "LaunchAgents" / f"{label}.plist"
+    target = f"gui/{uid}/{label}"
+    if command == "status":
+        return runtime.run_result(["launchctl", "print", target], timeout=30)
+    if command == "start":
+        return runtime.run_result(["launchctl", "bootstrap", f"gui/{uid}", str(plist)], timeout=30)
+    if command == "stop":
+        return runtime.run_result(["launchctl", "bootout", target], timeout=30)
+    return False, f"unknown helper action: {command}"

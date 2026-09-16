@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import platform
 import re
 import shutil
 import shlex
@@ -33,6 +34,9 @@ MANUAL = """myinstall — host-side application installer
 
 Usage:
   myinstall <app>                 install or update an application
+  myinstall <app> --install       install an application/runtime
+  myinstall <app> --install --helper
+  myinstall <app> helper start|stop|status
   myinstall <app> --update        update an application explicitly
   myinstall --uninstall           remove the myinstall host utility
   myinstall --update              update the host utility itself
@@ -879,6 +883,77 @@ def do_app_install(manifest_url: str, confirm: bool) -> int:
         return output({"ok": False, "error": f"{type(exc).__name__}: {exc}"}, 1)
 
 
+def do_helper_install(app_id: str, test: bool) -> int:
+    path, data = resolve_app_manifest(app_id)
+    config = data.get("helper")
+    if not isinstance(config, dict):
+        return output({"ok": False, "error": "application has no Mac helper contract"}, 1)
+    source = str(data.get("release_source", ""))
+    release = github.latest(source)
+    if release is None:
+        return output({"ok": False, "error": "no stable helper release found"}, 1)
+    selected = github.asset(release, str(config.get("asset_pattern", "")))
+    checksum = github.asset_sha256(release, selected)
+    temporary = native.download({"artifact": {"url": selected["browser_download_url"], "sha256": checksum}})
+    _, uid, home = service._launch_user()
+    target = home / "Library" / "Application Support" / "myinstall" / app_id / "helper"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    os.replace(temporary, target)
+    target.chmod(0o755)
+    if os.geteuid() == 0:
+        os.chown(target, uid, os.stat(target.parent).st_gid)
+    server_key = "test_server" if test else "server"
+    server = str(config.get(server_key, "")).strip()
+    if not server:
+        return output({"ok": False, "error": f"helper.{server_key} is missing"}, 1)
+    ok, diagnostic = service.install_helper(data, target, server)
+    if not ok:
+        return output({"ok": False, "error": "helper LaunchAgent install failed", "diagnostic": diagnostic}, 1)
+    return output({"mode": "helper install", "app": app_id, "server": server, "target": str(target)})
+
+
+def do_helper_command(app_id: str, action: str) -> int:
+    path, data = resolve_app_manifest(app_id)
+    ok, diagnostic = service.helper_action(data, action)
+    return output(
+        {"mode": f"helper {action}", "app": app_id, "diagnostic": diagnostic},
+        0 if ok else 1,
+    )
+
+
+def do_app_install_alias(app_id: str, *, helper: bool, docker: bool, test: bool) -> int:
+    if helper and docker:
+        return output({"ok": False, "error": "choose only one of --helper or --docker"}, 1)
+    if not helper and not docker:
+        if platform.system() != "Darwin":
+            docker = True
+        elif not sys.stdin.isatty() or not sys.stderr.isatty():
+            return output(
+                {
+                    "ok": False,
+                    "error": "install mode is required in non-interactive mode",
+                    "hint": "use --helper for local or --docker for server",
+                },
+                1,
+            )
+        else:
+            choice = input(
+                "Установить локальное приложение (helper) или серверное (Docker)? "
+                "[local/server] "
+            ).strip().lower()
+            if choice in {"local", "l", "helper", "h", ""}:
+                helper = True
+            elif choice in {"server", "s", "docker", "d"}:
+                docker = True
+            else:
+                return output({"ok": False, "error": "choose local or server"}, 1)
+    if helper:
+        if platform.system() != "Darwin":
+            return output({"ok": False, "error": "local helper is supported only on macOS"}, 1)
+        return do_helper_install(app_id, test)
+    return do_app_sync(app_id, None, None)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="myinstall")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -960,6 +1035,23 @@ def main(argv: list[str] | None = None) -> int:
         return do_self_update()
     if raw_argv and raw_argv[0] in {"--uninstall", "--remove"}:
         return do_self_remove(purge_secrets="--purge-secrets" in raw_argv[1:])
+    commands = {
+        "plan", "doctor", "check", "install", "upgrade", "rollback",
+        "uninstall", "remove", "apps", "app", "secret", "sync", "update", "auth",
+    }
+    if raw_argv and raw_argv[0] not in commands and not raw_argv[0].startswith("-"):
+        app_id = raw_argv[0]
+        if "--install" in raw_argv[1:]:
+            return do_app_install_alias(
+                app_id,
+                helper="--helper" in raw_argv[1:],
+                docker="--docker" in raw_argv[1:],
+                test="--test" in raw_argv[1:],
+            )
+        if len(raw_argv) >= 2 and raw_argv[1] == "helper":
+            if len(raw_argv) < 3 or raw_argv[2] not in {"start", "stop", "status"}:
+                return output({"ok": False, "error": "helper action must be start, stop, or status"}, 1)
+            return do_helper_command(app_id, raw_argv[2])
     if len(raw_argv) >= 2 and raw_argv[0] not in {
         "plan", "doctor", "check", "install", "upgrade", "rollback",
         "uninstall", "remove",
@@ -967,11 +1059,6 @@ def main(argv: list[str] | None = None) -> int:
         "auth",
     } and raw_argv[1] == "--update":
         raw_argv = ["update", raw_argv[0], *raw_argv[2:]]
-    commands = {
-        "plan", "doctor", "check", "install", "upgrade", "rollback",
-        "uninstall", "remove",
-        "apps", "app", "secret", "sync", "update", "auth",
-    }
     if raw_argv and raw_argv[0] not in commands and not raw_argv[0].startswith("-"):
         raw_argv.insert(0, "sync")
     args = build_parser().parse_args(raw_argv)

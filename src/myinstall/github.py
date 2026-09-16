@@ -146,6 +146,10 @@ def asset(release: Release, pattern: str | None = None) -> dict[str, Any]:
         expected = pattern.format(version=release.tag, platform=target_platform)
         if expected in names:
             return names[expected]
+        system = target_platform.rsplit("-", 1)[0]
+        universal = pattern.format(version=release.tag, platform=f"{system}-any")
+        if universal in names:
+            return names[universal]
     candidates = [item for item in release.assets if target_platform in str(item.get("name", ""))]
     if len(candidates) == 1:
         return candidates[0]

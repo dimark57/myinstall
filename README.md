@@ -99,6 +99,12 @@ sudo myinstall doctor --manifest deploy/bootstrap/manifest.json
 sudo myinstall secret rotate --manifest deploy/bootstrap/manifest.json --name database --confirm
 sudo myinstall mytask
 sudo myinstall myqa
+sudo myinstall mytask --install
+sudo myinstall mytask --install --helper
+sudo myinstall mytask --install --helper --test
+sudo myinstall mytask helper start
+sudo myinstall mytask helper stop
+sudo myinstall mytask helper status
 sudo myinstall --uninstall
 myinstall --help
 sudo myinstall --plan
@@ -119,6 +125,13 @@ private GHCR images require `MYINSTALL_GHCR_TOKEN`; the application repository
 itself is not cloned. Use `sudo myinstall <app> --update` only when the operator has
 intentionally prepared the target with elevated privileges; the command does
 not grant or manage sudo permissions itself.
+
+On macOS, `myinstall <app> --install` asks whether to install the local
+application (the GitHub Release helper) or the server application (Docker).
+`--helper` and `--docker` select a mode without prompting. The helper is
+installed as a per-user LaunchAgent;
+`helper start|stop|status` controls it. `--test` selects the manifest's test
+server instead of production.
 
 `sudo myinstall --uninstall` removes only the host-side `myinstall` executable.
 Installed applications remain untouched. The command asks whether the saved

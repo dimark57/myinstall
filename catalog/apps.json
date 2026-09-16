@@ -31,8 +31,16 @@
           "--help",
           "--man",
           "--doctor",
-          "--update"
+          "--update",
+          "repo",
+          "helper"
         ]
+      },
+      "helper": {
+        "asset_pattern": "mytask-helper-{version}-darwin-any",
+        "label": "com.mytask.helper",
+        "server": "https://mytask.digials.com",
+        "test_server": "http://127.0.0.1:8090/mythings"
       },
       "postgres": {
         "mode": "shared",

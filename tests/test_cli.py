@@ -51,6 +51,35 @@ def test_application_update_flag_delegates_to_application_sync() -> None:
     sync.assert_called_once_with("mytask", None, None)
 
 
+def test_application_install_helper_alias_delegates_selection() -> None:
+    with patch("myinstall.cli.do_app_install_alias", return_value=0) as install:
+        assert cli.main(["mytask", "--install", "--helper", "--test"]) == 0
+    install.assert_called_once_with("mytask", helper=True, docker=False, test=True)
+
+
+def test_application_install_prompts_for_local_or_server_mode() -> None:
+    with patch("myinstall.cli.platform.system", return_value="Darwin"), \
+        patch("myinstall.cli.sys.stdin.isatty", return_value=True), \
+        patch("myinstall.cli.sys.stderr.isatty", return_value=True), \
+        patch("builtins.input", return_value="server"), \
+        patch("myinstall.cli.do_app_sync", return_value=0) as sync:
+        assert cli.do_app_install_alias("mytask", helper=False, docker=False, test=False) == 0
+    sync.assert_called_once_with("mytask", None, None)
+
+
+def test_application_install_requires_explicit_mode_non_interactively(capsys) -> None:
+    with patch("myinstall.cli.platform.system", return_value="Darwin"), \
+        patch("myinstall.cli.sys.stdin.isatty", return_value=False):
+        assert cli.do_app_install_alias("mytask", helper=False, docker=False, test=False) == 1
+    assert "install mode is required" in capsys.readouterr().out
+
+
+def test_application_helper_lifecycle_alias_delegates() -> None:
+    with patch("myinstall.cli.do_helper_command", return_value=0) as helper:
+        assert cli.main(["mytask", "helper", "status"]) == 0
+    helper.assert_called_once_with("mytask", "status")
+
+
 def test_self_update_flag_is_explicitly_handled(capsys) -> None:
     with patch("myinstall.cli.do_self_update", return_value=0) as update:
         assert cli.main(["--update"]) == 0

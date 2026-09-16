@@ -27,6 +27,17 @@
       },
       "additionalProperties": false
     },
+    "helper": {
+      "type": "object",
+      "required": ["asset_pattern", "label", "server", "test_server"],
+      "properties": {
+        "asset_pattern": {"type": "string"},
+        "label": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+$"},
+        "server": {"type": "string", "format": "uri"},
+        "test_server": {"type": "string", "format": "uri"}
+      },
+      "additionalProperties": false
+    },
     "compose_source_url": {"type": "string", "format": "uri", "pattern": "^https://"},
     "stack_path": {"type": "string"},
     "data_path": {"type": "string"},
