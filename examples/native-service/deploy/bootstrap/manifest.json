@@ -4,6 +4,10 @@
   "runtime": "systemd",
   "app": "example",
   "zone": "apps",
+  "release_source": "acme/example",
+  "release_channel": "stable",
+  "current_version": "v1.2.3",
+  "release_asset_pattern": "example-{version}-{platform}",
   "artifact": {
     "url": "https://github.com/acme/example/releases/download/v1.2.3/example-linux-amd64",
     "sha256": "REPLACE_WITH_RELEASE_SHA256"

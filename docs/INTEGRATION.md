@@ -30,7 +30,7 @@ application repository
 The bootstrap must pin both the `myinstall` release URL and its SHA-256:
 
 ```bash
-MYINSTALL_URL="https://github.com/dimark57/myinstall/releases/download/v0.2.3/myinstall-v0.2.3-linux-amd64"
+MYINSTALL_URL="https://github.com/dimark57/myinstall/releases/download/v0.3.0/myinstall-v0.3.0-linux-amd64"
 MYINSTALL_SHA256="..."
 ```
 
@@ -48,6 +48,10 @@ Required fields are the stable API:
   "runtime": "systemd",
   "app": "example",
   "zone": "apps",
+  "release_source": "acme/example",
+  "release_channel": "stable",
+  "current_version": "v1.2.3",
+  "release_asset_pattern": "example-{version}-{platform}",
   "artifact": {
     "url": "https://github.com/acme/example/releases/download/v1.2.3/example-linux-amd64",
     "sha256": "..."
@@ -75,6 +79,8 @@ myinstall plan --manifest deploy/bootstrap/manifest.json
 myinstall install --manifest deploy/bootstrap/manifest.json --confirm
 myinstall upgrade --manifest deploy/bootstrap/manifest.json --version v1.2.4 --confirm
 myinstall rollback --manifest deploy/bootstrap/manifest.json --confirm
+myinstall apps check --root /srv/nas/stacks
+myinstall apps upgrade --root /srv/nas/stacks --confirm
 myinstall doctor --manifest deploy/bootstrap/manifest.json
 ```
 
@@ -89,6 +95,10 @@ An operator or scheduler updates the manifest release reference and invokes
 `upgrade`. `myinstall` stages the new version, runs migrations according to
 the manifest policy, restarts the service/runtime, and verifies health. A
 failed verification triggers a checked rollback to the previous generation.
+
+For stack-wide checks, `myinstall` discovers manifests directly from canonical
+stack paths and queries each `release_source` on GitHub. It does not create or
+require a local application registry or a separate update server.
 
 Database data is never removed by install, upgrade, or rollback. Destructive
 schema changes require an application-owned migration policy and backup

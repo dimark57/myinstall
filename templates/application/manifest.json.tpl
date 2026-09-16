@@ -4,6 +4,11 @@
   "runtime": "{{RUNTIME}}",
   "app": "{{APP_ID}}",
   "zone": "{{ZONE}}",
+  "release_source": "{{RELEASE_SOURCE}}",
+  "release_channel": "stable",
+  "current_version": "{{CURRENT_VERSION}}",
+  "release_asset_pattern": "{{RELEASE_ASSET_PATTERN}}",
+  "image_template": "{{IMAGE_TEMPLATE}}",
   "image": "{{IMAGE}}",
   "artifact": {
     "url": "{{ARTIFACT_URL}}",

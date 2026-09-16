@@ -4,10 +4,12 @@ import argparse
 import json
 import shutil
 import sys
+import tempfile
+import urllib.request
 from pathlib import Path
 from typing import Any
 
-from . import manifest, native, postgres, runtime, secrets, service
+from . import discovery, github, manifest, native, postgres, runtime, secrets, service
 
 
 def output(value: dict[str, Any], code: int = 0) -> int:
@@ -221,6 +223,113 @@ def do_rollback(data: dict[str, Any]) -> int:
     return output({"ok": False, "error": "runtime does not support rollback"}, 1)
 
 
+def roots_from_args(values: list[Path] | None) -> list[Path] | None:
+    return [path.expanduser().resolve() for path in values] if values else None
+
+
+def do_apps_list(roots: list[Path] | None) -> int:
+    return output(
+        {
+            "mode": "apps list",
+            "apps": [
+                {
+                    "app": data["app"],
+                    "runtime": data.get("runtime"),
+                    "manifest": str(path),
+                    "current_version": data.get("current_version"),
+                }
+                for path, data in discovery.load_all(roots)
+            ],
+        }
+    )
+
+
+def do_apps_check(roots: list[Path] | None) -> int:
+    return output({"mode": "apps check", "apps": discovery.check(roots)})
+
+
+def do_apps_doctor(roots: list[Path] | None) -> int:
+    return output(
+        {
+            "mode": "apps doctor",
+            "apps": [report(path, data) for path, data in discovery.load_all(roots)],
+        }
+    )
+
+
+def do_apps_upgrade(roots: list[Path] | None, confirm: bool) -> int:
+    if not confirm:
+        return output({"ok": False, "error": "apps upgrade requires --confirm"}, 1)
+    results = []
+    for path, data in discovery.load_all(roots):
+        source = data.get("release_source")
+        current = data.get("current_version")
+        if not source or not current:
+            results.append({"app": data["app"], "state": "not_configured"})
+            continue
+        release = github.latest(str(source), channel=str(data.get("release_channel", "stable")))
+        if not release or discovery._version(release.tag) <= discovery._version(str(current)):
+            results.append({"app": data["app"], "state": "up_to_date", "version": current})
+            continue
+        updated = dict(data)
+        if data.get("runtime") in {"native", "systemd", "launchd"}:
+            selected = github.asset(release, data.get("release_asset_pattern"))
+            updated["artifact"] = {
+                **dict(data["artifact"]),
+                "url": selected["browser_download_url"],
+                "sha256": github.asset_sha256(release, selected),
+            }
+            code = do_upgrade(path, updated, None, release.tag)
+        elif data.get("runtime") in {"docker", "mixed"}:
+            template = str(data.get("image_template", ""))
+            if not template:
+                results.append({"app": data["app"], "state": "missing_image_template"})
+                continue
+            code = do_upgrade(
+                path,
+                updated,
+                template.format(tag=release.tag, version=release.tag),
+                release.tag,
+            )
+        else:
+            results.append({"app": data["app"], "state": "unsupported_runtime"})
+            continue
+        if code == 0:
+            updated["current_version"] = release.tag
+            path.write_text(json.dumps(updated, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            results.append({"app": data["app"], "state": "upgraded", "version": release.tag})
+        else:
+            results.append({"app": data["app"], "state": "failed", "version": release.tag})
+    failed = any(item["state"] == "failed" for item in results)
+    return output({"mode": "apps upgrade", "apps": results}, 1 if failed else 0)
+
+
+def do_app_install(manifest_url: str, confirm: bool) -> int:
+    if not confirm:
+        return output({"ok": False, "error": "app install requires --confirm"}, 1)
+    if not manifest_url.startswith("https://"):
+        return output({"ok": False, "error": "manifest URL must use HTTPS"}, 1)
+    try:
+        with urllib.request.urlopen(manifest_url, timeout=30) as response:
+            data = json.loads(response.read())
+        if not isinstance(data, dict):
+            raise ValueError("manifest must be an object")
+        with tempfile.NamedTemporaryFile("w", suffix=".manifest.json", encoding="utf-8") as temporary:
+            json.dump(data, temporary)
+            temporary.flush()
+            loaded = manifest.load(Path(temporary.name))
+        errors = manifest.validate_paths(loaded)
+        if errors:
+            return output({"ok": False, "error": "invalid manifest paths", "details": errors}, 1)
+        stack = Path(str(data["stack_path"]))
+        stack.mkdir(parents=True, exist_ok=True)
+        path = stack / "manifest.json"
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        return do_install(path, loaded)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        return output({"ok": False, "error": f"{type(exc).__name__}: {exc}"}, 1)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="myinstall")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -237,12 +346,36 @@ def build_parser() -> argparse.ArgumentParser:
     secret.add_argument("--manifest", required=True, type=Path)
     secret.add_argument("--name")
     secret.add_argument("--confirm", action="store_true")
+    apps = sub.add_parser("apps")
+    apps_sub = apps.add_subparsers(dest="apps_action", required=True)
+    for name in ("list", "check", "doctor"):
+        command = apps_sub.add_parser(name)
+        command.add_argument("--root", action="append", type=Path)
+    apps_upgrade = apps_sub.add_parser("upgrade")
+    apps_upgrade.add_argument("--root", action="append", type=Path)
+    apps_upgrade.add_argument("--confirm", action="store_true")
+    app = sub.add_parser("app")
+    app_sub = app.add_subparsers(dest="app_action", required=True)
+    app_install = app_sub.add_parser("install")
+    app_install.add_argument("--manifest-url", required=True)
+    app_install.add_argument("--confirm", action="store_true")
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        if args.command == "apps":
+            roots = roots_from_args(args.root)
+            if args.apps_action == "list":
+                return do_apps_list(roots)
+            if args.apps_action == "check":
+                return do_apps_check(roots)
+            if args.apps_action == "doctor":
+                return do_apps_doctor(roots)
+            return do_apps_upgrade(roots, args.confirm)
+        if args.command == "app":
+            return do_app_install(args.manifest_url, args.confirm)
         path = args.manifest.expanduser().resolve()
         data = manifest.load(path)
         if (

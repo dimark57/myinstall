@@ -6,7 +6,7 @@ Docker/Compose как один из runtime adapters устанавливаем�
 не требует Docker для запуска собственной CLI или для native/systemd
 проектов.
 
-Latest release: `v0.2.3`
+Latest release: `v0.3.0`
 
 - Install contract: [docs/INTEGRATION.md](docs/INTEGRATION.md)
 - Platform matrix: [PLATFORMS.md](PLATFORMS.md)
@@ -49,6 +49,8 @@ myinstall upgrade --manifest deploy/bootstrap/manifest.json \
 myinstall rollback --manifest deploy/bootstrap/manifest.json --confirm
 myinstall doctor --manifest deploy/bootstrap/manifest.json
 myinstall secret rotate --manifest deploy/bootstrap/manifest.json --name database --confirm
+myinstall apps check --root /srv/nas/stacks
+myinstall apps upgrade --root /srv/nas/stacks --confirm
 ```
 
 The application bootstrap downloads a pinned `myinstall` release bundle and

@@ -60,6 +60,8 @@ def load(path: Path) -> dict[str, Any]:
         artifact = value.get("artifact")
         if not isinstance(artifact, dict) or not str(artifact.get("url", "")).startswith("https://"):
             raise ValueError("service runtime requires an HTTPS artifact")
+    if "release_source" in value and not value.get("current_version"):
+        raise ValueError("release_source requires current_version")
     return value
 
 

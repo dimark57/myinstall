@@ -71,14 +71,19 @@ def lock(stack_path: Path) -> Iterator[None]:
 
 
 def materialize(manifest_path: Path, manifest: dict[str, Any]) -> Path:
+    source_url = manifest.get("compose_source_url")
     source = manifest_path.parent.parent.parent / str(
         manifest.get("compose_source", "deploy/bootstrap/stack-compose.yml")
     )
     target = Path(manifest["stack_path"]) / "docker-compose.yml"
-    if not source.is_file():
+    if source_url:
+        with urllib.request.urlopen(str(source_url), timeout=30) as response:
+            text = response.read().decode("utf-8")
+    elif source.is_file():
+        text = source.read_text(encoding="utf-8")
+    else:
         raise FileNotFoundError(f"compose source missing: {source}")
     target.parent.mkdir(parents=True, exist_ok=True)
-    text = source.read_text(encoding="utf-8")
     replacements = {
         "{{IMAGE}}": str(manifest.get("image", "")),
         "{{SECRET_PATH}}": str(manifest["secret_path"]),

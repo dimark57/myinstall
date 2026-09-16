@@ -2,6 +2,15 @@
 
 All notable changes to `myinstall` are documented here.
 
+## [0.3.0] - 2026-09-16
+
+### Added
+
+- Direct GitHub Releases discovery without a local application registry.
+- `apps list`, `apps check`, `apps doctor`, and `apps upgrade`.
+- Generic `app install --manifest-url`.
+- Manifest release source, channel, version, and asset selection fields.
+
 ## [0.2.3] - 2026-09-16
 
 ### Fixed

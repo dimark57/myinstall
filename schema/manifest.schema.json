@@ -9,6 +9,12 @@
     "image": {"type": "string"},
     "kind": {"type": "string"},
     "runtime": {"enum": ["native", "docker", "systemd", "launchd", "mixed", "none"]},
+    "release_source": {"type": "string", "pattern": "^(https://github\\.com/)?[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/?$"},
+    "release_channel": {"enum": ["stable", "prerelease"]},
+    "current_version": {"type": "string", "pattern": "^v?[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "release_asset_pattern": {"type": "string"},
+    "image_template": {"type": "string"},
+    "compose_source_url": {"type": "string", "format": "uri", "pattern": "^https://"},
     "stack_path": {"type": "string"},
     "data_path": {"type": "string"},
     "secret_path": {"type": "string"},
@@ -59,6 +65,10 @@
     {
       "if": {"properties": {"runtime": {"enum": ["native", "systemd", "launchd"]}}},
       "then": {"required": ["artifact", "install_path"]}
+    },
+    {
+      "if": {"required": ["release_source"]},
+      "then": {"required": ["current_version"]}
     }
   ]
 }

@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 from pathlib import Path
 
-from myinstall import manifest, postgres, runtime, secrets
+from myinstall import discovery, github, manifest, postgres, runtime, secrets
 
 
 class CoreTest(unittest.TestCase):
@@ -128,6 +128,30 @@ class CoreTest(unittest.TestCase):
         self.secret.write_text("A=one\nA=two\n", encoding="utf-8")
         with self.assertRaises(ValueError):
             secrets.read(self.secret)
+
+    def test_github_release_selects_platform_asset(self) -> None:
+        payload = json.dumps(
+            {
+                "tag_name": "v1.2.3",
+                "prerelease": False,
+                "assets": [
+                    {"name": "myapp-darwin-arm64", "browser_download_url": "https://example.test/app"},
+                ],
+            }
+        ).encode()
+        with patch("myinstall.github._request", return_value=(200, payload, '"etag"')):
+            release = github.latest("acme/myapp")
+        with patch("myinstall.github.platform_name", return_value="darwin-arm64"):
+            selected = github.asset(release, "myapp-{platform}")
+        self.assertEqual(selected["name"], "myapp-darwin-arm64")
+
+    def test_discovery_reads_manifests_without_registry(self) -> None:
+        root = self.root / "stacks"
+        manifest_path = root / "demo" / "manifest.json"
+        manifest_path.parent.mkdir(parents=True)
+        manifest_path.write_text(self.manifest_path.read_text(encoding="utf-8"), encoding="utf-8")
+        discovered = discovery.load_all([root])
+        self.assertEqual([data["app"] for _, data in discovered], ["demo"])
 
 
 if __name__ == "__main__":

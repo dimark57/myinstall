@@ -10,6 +10,9 @@ myinstall plan --manifest PATH
 myinstall doctor --manifest PATH
 myinstall check --manifest PATH
 myinstall secret status --manifest PATH
+myinstall apps list --root PATH
+myinstall apps check --root PATH
+myinstall apps doctor --root PATH
 ```
 
 These commands do not change the application repository, secret file, Compose
@@ -21,6 +24,8 @@ file, data directory, image or running containers.
 myinstall install --manifest PATH --confirm
 myinstall upgrade --manifest PATH [--version VERSION|--image IMAGE] --confirm
 myinstall rollback --manifest PATH --confirm
+myinstall apps upgrade --root PATH --confirm
+myinstall app install --manifest-url HTTPS_URL --confirm
 myinstall secret ensure --manifest PATH
 myinstall secret rotate --manifest PATH --name database --confirm
 myinstall secret remove --manifest PATH --name KEY --confirm
@@ -35,6 +40,10 @@ Applications own their manifest, release artifact, health, and migration
 contract. This project owns host paths, secret lifecycle, PostgreSQL
 credentials, runtime lifecycle, locks, rollback and redacted diagnostics.
 Release artifacts are published through immutable GitHub Releases.
+
+When `release_source` is present, stack-level commands discover existing
+manifests and query GitHub Releases directly. They do not create a local
+application registry or require a separate update server.
 
 For a shared PostgreSQL cluster, the manifest declares `postgres.mode=shared`,
 the cluster adapter and the app-specific database/role. Install/upgrade/remove
