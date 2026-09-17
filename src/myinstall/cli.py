@@ -149,7 +149,7 @@ def do_self_update() -> int:
     artifact = native.download(
         {
             "artifact": {
-                "url": selected["browser_download_url"],
+                "url": selected.get("url", selected["browser_download_url"]),
                 "sha256": checksum,
             }
         }
@@ -405,7 +405,7 @@ def resolve_release(data: dict[str, Any], version: str) -> dict[str, Any]:
         selected = github.asset(release, data.get("release_asset_pattern"))
         updated["artifact"] = {
             **dict(data["artifact"]),
-            "url": selected["browser_download_url"],
+            "url": selected.get("url", selected["browser_download_url"]),
             "sha256": github.asset_sha256(release, selected),
         }
     elif data.get("runtime") in {"docker", "mixed"}:
@@ -776,7 +776,7 @@ def do_app_sync(app_id: str, version: str | None, image: str | None) -> int:
             release, asset = selected
             data["artifact"] = {
                 **dict(data.get("artifact", {})),
-                "url": asset["browser_download_url"],
+                "url": asset.get("url", asset["browser_download_url"]),
                 "sha256": github.asset_sha256(release, asset),
             }
             data["current_version"] = release.tag
@@ -864,7 +864,7 @@ def do_apps_upgrade(roots: list[Path] | None, confirm: bool) -> int:
             selected = github.asset(release, data.get("release_asset_pattern"))
             updated["artifact"] = {
                 **dict(data["artifact"]),
-                "url": selected["browser_download_url"],
+                "url": selected.get("url", selected["browser_download_url"]),
                 "sha256": github.asset_sha256(release, selected),
             }
             code = do_upgrade(path, updated, None, release.tag)

@@ -3,9 +3,11 @@ from __future__ import annotations
 import hashlib
 import os
 import shutil
+import shlex
 import tempfile
 import re
 import urllib.request
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -79,8 +81,28 @@ def install_artifact(manifest: dict[str, Any], *, version: str = "current") -> P
     artifact = download(manifest)
     staged = release_dir / f".{target.name}.new"
     try:
-        os.replace(artifact, staged)
-        os.chmod(staged, 0o755)
+        if zipfile.is_zipfile(artifact):
+            with zipfile.ZipFile(artifact) as archive:
+                for member in archive.infolist():
+                    destination = (release_dir / member.filename).resolve()
+                    if release_dir.resolve() not in destination.parents and destination != release_dir.resolve():
+                        raise ValueError("artifact archive contains an unsafe path")
+                archive.extractall(release_dir)
+            executable = release_dir / "bin" / target.name
+            if not executable.is_file():
+                raise ValueError(f"artifact archive does not contain bin/{target.name}")
+            executable.chmod(executable.stat().st_mode | 0o111)
+            menubar = release_dir / "mytask-menubar"
+            if menubar.is_file():
+                menubar.chmod(menubar.stat().st_mode | 0o111)
+            staged.write_text(
+                f"#!/bin/sh\nexec {shlex.quote(str(executable))} \"$@\"\n",
+                encoding="utf-8",
+            )
+            os.chmod(staged, 0o755)
+        else:
+            os.replace(artifact, staged)
+            os.chmod(staged, 0o755)
         target.parent.mkdir(parents=True, exist_ok=True)
         previous = target.with_name(f".{target.name}.previous")
         if target.exists():
