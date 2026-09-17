@@ -4,12 +4,12 @@
   "targets": [
     {
       "path": "src/myinstall/__init__.py",
-      "search": "__version__ = \"0.3.34\"",
+        "search": "__version__ = \"0.3.35\"",
       "replace": "__version__ = \"{version}\""
     },
     {
       "path": "README.md",
-      "search": "Latest release: `v0.3.34`",
+        "search": "Latest release: `v0.3.35`",
       "replace": "Latest release: `v{version}`"
     }
   ],
