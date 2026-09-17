@@ -63,7 +63,14 @@ def load(path: Path) -> dict[str, Any]:
         raise ValueError(f"unsupported runtime: {runtime}")
     if runtime in {"native", "systemd", "launchd"}:
         artifact = value.get("artifact")
-        if not isinstance(artifact, dict) or not str(artifact.get("url", "")).startswith("https://"):
+        has_release_asset = bool(value.get("release_asset_pattern"))
+        if (
+            not has_release_asset
+            and (
+                not isinstance(artifact, dict)
+                or not str(artifact.get("url", "")).startswith("https://")
+            )
+        ):
             raise ValueError("service runtime requires an HTTPS artifact")
     if isinstance(value.get("postgres"), dict):
         from .postgres import validate_config
@@ -108,7 +115,11 @@ def validate_paths(manifest: dict[str, Any]) -> list[str]:
             errors.append("docker/mixed runtime requires an immutable image tag or digest")
     if runtime in {"native", "systemd", "launchd"}:
         artifact = manifest.get("artifact", {})
-        if not isinstance(artifact, dict) or not artifact.get("url") or not artifact.get("sha256"):
+        has_release_asset = bool(manifest.get("release_asset_pattern"))
+        if (
+            not has_release_asset
+            and (not isinstance(artifact, dict) or not artifact.get("url") or not artifact.get("sha256"))
+        ):
             errors.append("native/service runtime requires an HTTPS artifact and SHA-256")
         install_path = manifest.get("install_path")
         if not install_path:
